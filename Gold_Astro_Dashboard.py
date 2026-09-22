@@ -390,7 +390,7 @@ if "calc_date" not in st.session_state or "calc_time" not in st.session_state:
 # Real-time Auto-Refresh Logic
 st.sidebar.subheader("🔄 Real-Time Auto-Refresh")
 auto_refresh = st.sidebar.checkbox("Enable Live Refresh", value=True)
-refresh_interval = st.sidebar.slider("Refresh Every (seconds)", min_value=5, max_value=60, value=15)
+refresh_interval = st.sidebar.slider("Refresh Every (minutes)", min_value=5, max_value=60, value=15)
 
 if auto_refresh:
     now = datetime.datetime.now()
@@ -398,7 +398,7 @@ if auto_refresh:
     st.session_state["calc_time"] = now.time()
 
     if HAS_AUTOREFRESH:
-        st_autorefresh(interval=refresh_interval * 1000, key="gold_astro_refresher")
+        st_autorefresh(interval=refresh_interval * 1, key="gold_astro_refresher")
     else:
         time.sleep(refresh_interval)
         st.rerun()
