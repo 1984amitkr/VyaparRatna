@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import zoneinfo
+import pandas as pd
 
 # Try importing Swiss Ephemeris with fallback
 SWISS_EPH_AVAILABLE = False
@@ -46,9 +47,7 @@ SBC_GRID_POSITIONS = {
 
 GRID_TO_NAKSHATRA = {v: k for k, v in SBC_GRID_POSITIONS.items()}
 
-# -------------------------------------------------------------------
 # VARNADIPANCHAK MAPPING (INNER 7x7 GRID LAYOUT)
-# -------------------------------------------------------------------
 VARNADIPANCHAK_GRID = {
     # Layer 1 (Outer Inner Border - Svara/Vowels & Tithi)
     (1, 1): "अ / Nanda",   (1, 2): "आ / Bhadra",  (1, 3): "इ / Jaya",    (1, 4): "ई / Rikta",   (1, 5): "उ / Purna",   (1, 6): "ऊ / Nanda",   (1, 7): "ऋ / Bhadra",
@@ -490,18 +489,37 @@ selected_planets = st.multiselect(
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
 st.components.v1.html(sbc_html, height=670, scrolling=False)
 
-# Detailed Cards
+# Compact Table for Planetary Vedha Details
 st.divider()
 st.subheader("🔍 Planetary Vedha Details")
-cols = st.columns(3)
-for idx, p in enumerate(data):
-    with cols[idx % 3]:
-        with st.container(border=True):
-            st.markdown(f"### {p['Planet']}")
-            st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
-            st.write(f"**Motion:** `{p['Motion']}`")
-            st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
-            st.markdown("---")
-            st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
-            st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
-            st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
+
+table_data = []
+for p in data:
+    table_data.append({
+        "Planet": p["Planet"],
+        "Nakshatra": p["Nakshatra"],
+        "Speed (°/d)": f"{p['Speed (°/day)']:.4f}",
+        "Motion": p["Motion"],
+        "Primary Aspect": p["Primary Vedha"],
+        "🎯 Front Vedha": p["Front Target"] if p["Front Target"] else "-",
+        "⬅️ Left Vedha": p["Left Target"] if p["Left Target"] else "-",
+        "➡️ Right Vedha": p["Right Target"] if p["Right Target"] else "-"
+    })
+
+df_vedha = pd.DataFrame(table_data)
+
+st.dataframe(
+    df_vedha,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Planet": st.column_config.TextColumn("Planet", width="small"),
+        "Nakshatra": st.column_config.TextColumn("Nakshatra", width="medium"),
+        "Speed (°/d)": st.column_config.TextColumn("Speed (°/d)", width="small"),
+        "Motion": st.column_config.TextColumn("Motion", width="medium"),
+        "Primary Aspect": st.column_config.TextColumn("Primary Aspect", width="medium"),
+        "🎯 Front Vedha": st.column_config.TextColumn("🎯 Front Vedha", width="medium"),
+        "⬅️ Left Vedha": st.column_config.TextColumn("⬅️ Left Vedha", width="medium"),
+        "➡️ Right Vedha": st.column_config.TextColumn("➡️ Right Vedha", width="medium"),
+    }
+)
