@@ -91,7 +91,7 @@ VARNADIPANCHAK_GRID = {
 }
 
 # -------------------------------------------------------------------
-# 2. NAKSHATRA & PANCHANG CALCULATIONS
+# 2. NAKSHATRA, PADA & PANCHANG CALCULATIONS
 # -------------------------------------------------------------------
 def get_sbc_nakshatra(lon: float) -> str:
     lon = lon % 360
@@ -99,6 +99,11 @@ def get_sbc_nakshatra(lon: float) -> str:
         return "Abhijit"
     idx = int(lon // (360.0 / 27.0))
     return NAKSHATRAS_27[idx % 27]
+
+def get_pada(lon: float) -> int:
+    lon = lon % 360
+    pada_span = 360.0 / 108.0  # Each pada is 3°20' (3.3333 degrees)
+    return int((lon % (360.0 / 27.0)) // pada_span) + 1
 
 def calculate_panchang(sun_lon: float, moon_lon: float, dt: datetime.datetime):
     vara = dt.strftime("%A")
@@ -110,9 +115,10 @@ def calculate_panchang(sun_lon: float, moon_lon: float, dt: datetime.datetime):
     tithi_name = TITHIS[tithi_idx % 15]
     tithi_str = f"{paksha} {tithi_name} (Tithi {tithi_idx + 1})"
     
-    # Nakshatra
+    # Nakshatra & Pada
     nak_idx = int(moon_lon // (360.0 / 27.0))
     nakshatra_str = NAKSHATRAS_27[nak_idx % 27]
+    pada_num = get_pada(moon_lon)
     
     # Yoga
     sum_lon = (sun_lon + moon_lon) % 360
@@ -131,7 +137,7 @@ def calculate_panchang(sun_lon: float, moon_lon: float, dt: datetime.datetime):
     return {
         "Vara": vara,
         "Tithi": tithi_str,
-        "Nakshatra": nakshatra_str,
+        "Nakshatra": f"{nakshatra_str} (Pada {pada_num})",
         "Yoga": yoga_str,
         "Karana": karana_str
     }
@@ -221,11 +227,12 @@ def get_ephemeris_data(dt: datetime.datetime):
                     speed = -speed
 
                 nak_name = get_sbc_nakshatra(lon)
+                pada_num = get_pada(lon)
                 vedha = calculate_vedha(p_name, nak_name, speed)
 
                 planet_data.append({
                     "Planet": p_name, "Longitude": lon, "Speed (°/day)": round(speed, 4),
-                    "Nakshatra": nak_name, "Motion": vedha["Motion"],
+                    "Nakshatra": nak_name, "Pada": pada_num, "Motion": vedha["Motion"],
                     "Primary Vedha": vedha["Primary Vedha"],
                     "Front Target": vedha["Front Target"], "Left Target": vedha["Left Target"],
                     "Right Target": vedha["Right Target"], "All Targets": vedha["All_Targets"]
@@ -253,10 +260,11 @@ def get_ephemeris_data(dt: datetime.datetime):
     for p_name, lon in mean_longitudes.items():
         speed = AVERAGE_DAILY_SPEEDS.get(p_name, 1.0)
         nak_name = get_sbc_nakshatra(lon)
+        pada_num = get_pada(lon)
         vedha = calculate_vedha(p_name, nak_name, speed)
         planet_data.append({
             "Planet": p_name, "Longitude": lon, "Speed (°/day)": speed,
-            "Nakshatra": nak_name, "Motion": "Sama (Normal)",
+            "Nakshatra": nak_name, "Pada": pada_num, "Motion": "Sama (Normal)",
             "Primary Vedha": vedha["Primary Vedha"],
             "Front Target": vedha["Front Target"], "Left Target": vedha["Left Target"],
             "Right Target": vedha["Right Target"], "All Targets": vedha["All_Targets"]
@@ -265,7 +273,7 @@ def get_ephemeris_data(dt: datetime.datetime):
     return planet_data
 
 # -------------------------------------------------------------------
-# 4. GOLD TRADING ANALYSIS ENGINE
+# 4. GOLD TRADING ANALYSIS & PREDICTIVE 12-HOUR SCANNER
 # -------------------------------------------------------------------
 def analyze_gold_market(planet_data):
     p_map = {p["Planet"]: p for p in planet_data}
@@ -299,6 +307,76 @@ def analyze_gold_market(planet_data):
         signal, bias = "NEUTRAL ⚠️", "Range-Bound"
 
     return {"Signal": signal, "Bias": bias, "Score": score, "Bullish Factors": bullish_factors, "Bearish Factors": bearish_factors}
+
+def predict_upcoming_changes(base_dt: datetime.datetime, hours_ahead: int = 12):
+    """Scans the next N hours in 15-minute steps for Nakshatra, Pada, and Vedha changes."""
+    initial_data = get_ephemeris_data(base_dt)
+    prev_state = {p["Planet"]: p for p in initial_data}
+
+    changes = []
+    step_minutes = 15
+    total_steps = int((hours_ahead * 60) / step_minutes)
+
+    for step in range(1, total_steps + 1):
+        future_dt = base_dt + datetime.timedelta(minutes=step * step_minutes)
+        future_data = get_ephemeris_data(future_dt)
+        future_map = {p["Planet"]: p for p in future_data}
+
+        for planet_name in prev_state:
+            curr_p = prev_state[planet_name]
+            fut_p = future_map[planet_name]
+
+            # 1. Nakshatra Change
+            if curr_p["Nakshatra"] != fut_p["Nakshatra"]:
+                impact = "High Volatility Shift" if planet_name in ["Moon", "Sun", "Jupiter"] else "Moderate Shift"
+                if planet_name in MALEFICS:
+                    gold_impact = "🔴 Malefic star shift; watch for sudden price rejection or risk-off sentiment."
+                else:
+                    gold_impact = "🟢 Benefic star shift; potential positive support/momentum for gold."
+
+                changes.append({
+                    "Date & Time (IST)": future_dt.strftime("%d %b %Y, %I:%M %p"),
+                    "Planet / Point": planet_name,
+                    "Event Type": "Nakshatra Shift",
+                    "Details": f"Moved from {curr_p['Nakshatra']} to {fut_p['Nakshatra']}",
+                    "Impact on Gold": gold_impact
+                })
+                prev_state[planet_name]["Nakshatra"] = fut_p["Nakshatra"]
+
+            # 2. Pada Change
+            elif curr_p["Pada"] != fut_p["Pada"]:
+                changes.append({
+                    "Date & Time (IST)": future_dt.strftime("%d %b %Y, %I:%M %p"),
+                    "Planet / Point": planet_name,
+                    "Event Type": "Pada Transition",
+                    "Details": f"{fut_p['Nakshatra']} — Entered Pada {fut_p['Pada']} (from Pada {curr_p['Pada']})",
+                    "Impact on Gold": f"⚡ Subtle micro-trend shift in intraday momentum for {planet_name}."
+                })
+                prev_state[planet_name]["Pada"] = fut_p["Pada"]
+
+            # 3. Vedha Target Change
+            if curr_p["Front Target"] != fut_p["Front Target"] or curr_p["Left Target"] != fut_p["Left Target"] or curr_p["Right Target"] != fut_p["Right Target"]:
+                target_desc = f"New Vedha Targets -> Front: {fut_p['Front Target']}, Left: {fut_p['Left Target']}, Right: {fut_p['Right Target']}"
+                
+                if planet_name in MALEFICS and fut_p["Front Target"] == prev_state["Sun"]["Nakshatra"]:
+                    vedha_impact = "🔴 WARNING: Direct Malefic Vedha targeted at Sun. Strong bearish signal for Gold."
+                elif planet_name == "Jupiter":
+                    vedha_impact = "🟢 Jupiter Vedha realignment; impacts institutional buying levels."
+                else:
+                    vedha_impact = "⚠️ Intraday SBC Ray adjustment; monitor key support/resistance."
+
+                changes.append({
+                    "Date & Time (IST)": future_dt.strftime("%d %b %Y, %I:%M %p"),
+                    "Planet / Point": planet_name,
+                    "Event Type": "Vedha Ray Change",
+                    "Details": target_desc,
+                    "Impact on Gold": vedha_impact
+                })
+                prev_state[planet_name]["Front Target"] = fut_p["Front Target"]
+                prev_state[planet_name]["Left Target"] = fut_p["Left Target"]
+                prev_state[planet_name]["Right Target"] = fut_p["Right Target"]
+
+    return changes
 
 # -------------------------------------------------------------------
 # 5. COMPACT RESPONSIVE SVG + HTML GRID RENDERER
@@ -593,7 +671,7 @@ with p_col1:
 with p_col2:
     st.markdown(f"<div class='panchang-card'><div class='panchang-title'>🌙 Tithi</div><div class='panchang-val'>{panchang['Tithi']}</div></div>", unsafe_allow_html=True)
 with p_col3:
-    st.markdown(f"<div class='panchang-card'><div class='panchang-title'>⭐ Moon Nakshatra</div><div class='panchang-val'>{panchang['Nakshatra']}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='panchang-card'><div class='panchang-title'>⭐ Moon Nakshatra & Pada</div><div class='panchang-val'>{panchang['Nakshatra']}</div></div>", unsafe_allow_html=True)
 with p_col4:
     st.markdown(f"<div class='panchang-card'><div class='panchang-title'>🧘 Yoga</div><div class='panchang-val'>{panchang['Yoga']}</div></div>", unsafe_allow_html=True)
 with p_col5:
@@ -633,7 +711,32 @@ with col_b:
 
 st.markdown("---")
 
-# --- THIRD SECTION: VISUAL CHAKRA & CONTROLS ---
+# --- THIRD SECTION: UPCOMING 12-HOUR PREDICTIVE TRANSITIONS ---
+st.markdown("### 🔮 Upcoming Nakshatra, Pada & Vedha Changes (Next 12 Hours)")
+st.caption(f"Calculated relative to active baseline timestamp: **{effective_datetime.strftime('%d %b %Y, %I:%M %p %Z')}**")
+
+upcoming_events = predict_upcoming_changes(effective_datetime, hours_ahead=12)
+
+if upcoming_events:
+    df_upcoming = pd.DataFrame(upcoming_events)
+    st.dataframe(
+        df_upcoming,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Date & Time (IST)": st.column_config.TextColumn("Date & Time (IST)", width="medium"),
+            "Planet / Point": st.column_config.TextColumn("Planet", width="small"),
+            "Event Type": st.column_config.TextColumn("Event Type", width="small"),
+            "Details": st.column_config.TextColumn("Details of Change", width="large"),
+            "Impact on Gold": st.column_config.TextColumn("Impact on Gold Trading", width="large")
+        }
+    )
+else:
+    st.info("ℹ️ No major Nakshatra, Pada, or Vedha target changes detected in the upcoming 12 hours.")
+
+st.markdown("---")
+
+# --- FOURTH SECTION: VISUAL CHAKRA & CONTROLS ---
 st.markdown("### 🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
 
 btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
@@ -657,14 +760,15 @@ st.components.v1.html(sbc_html, height=680, scrolling=False)
 
 st.markdown("---")
 
-# --- FOURTH SECTION: PLANETARY TABLE DETAILS ---
-st.markdown("### 🔍 Planetary Vedha Details")
+# --- FIFTH SECTION: PLANETARY TABLE DETAILS ---
+st.markdown("### 🔍 Current Planetary Vedha Details")
 
 table_data = []
 for p in data:
     table_data.append({
         "Planet": p["Planet"],
         "Nakshatra": p["Nakshatra"],
+        "Pada": p["Pada"],
         "Speed (°/d)": f"{p['Speed (°/day)']:.4f}",
         "Motion": p["Motion"],
         "Primary Aspect": p["Primary Vedha"],
@@ -682,6 +786,7 @@ st.dataframe(
     column_config={
         "Planet": st.column_config.TextColumn("Planet", width="small"),
         "Nakshatra": st.column_config.TextColumn("Nakshatra", width="medium"),
+        "Pada": st.column_config.NumberColumn("Pada", width="small"),
         "Speed (°/d)": st.column_config.TextColumn("Speed (°/d)", width="small"),
         "Motion": st.column_config.TextColumn("Motion", width="medium"),
         "Primary Aspect": st.column_config.TextColumn("Primary Aspect", width="medium"),
