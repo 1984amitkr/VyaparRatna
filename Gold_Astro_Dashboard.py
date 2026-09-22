@@ -590,7 +590,6 @@ selected_planets = st.multiselect(
 )
 
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets, effective_datetime)
-# Increased height to 920px to prevent clipping at the bottom
 st.components.v1.html(sbc_html, height=920, scrolling=False)
 
 # Compact Table for Planetary Vedha Details
@@ -620,7 +619,7 @@ st.dataframe(
         "Planet": st.column_config.TextColumn("Planet", width="small"),
         "Nakshatra": st.column_config.TextColumn("Nakshatra", width="medium"),
         "Speed (°/d)": st.column_config.TextColumn("Speed (°/d)", width="small"),
-        "Motion": p_motion := st.column_config.TextColumn("Motion", width="medium"),
+        "Motion": st.column_config.TextColumn("Motion", width="medium"),
         "Primary Aspect": st.column_config.TextColumn("Primary Aspect", width="medium"),
         "🎯 Front Vedha": st.column_config.TextColumn("🎯 Front Vedha", width="medium"),
         "⬅️ Left Vedha": st.column_config.TextColumn("⬅️ Left Vedha", width="medium"),
