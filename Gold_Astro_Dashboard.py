@@ -102,35 +102,31 @@ def get_sbc_nakshatra(lon: float) -> str:
 
 def get_pada(lon: float) -> int:
     lon = lon % 360
-    pada_span = 360.0 / 108.0  # Each pada is 3°20' (3.3333 degrees)
+    pada_span = 360.0 / 108.0
     return int((lon % (360.0 / 27.0)) // pada_span) + 1
 
 def calculate_panchang(sun_lon: float, moon_lon: float, dt: datetime.datetime):
     vara = dt.strftime("%A")
     diff = (moon_lon - sun_lon) % 360
     
-    # Tithi
     tithi_idx = int(diff // 12)
     paksha = "Shukla" if tithi_idx < 15 else "Krishna"
     tithi_name = TITHIS[tithi_idx % 15]
     tithi_str = f"{paksha} {tithi_name} (Tithi {tithi_idx + 1})"
     
-    # Nakshatra & Pada
     nak_idx = int(moon_lon // (360.0 / 27.0))
     nakshatra_str = NAKSHATRAS_27[nak_idx % 27]
     pada_num = get_pada(moon_lon)
     
-    # Yoga
     sum_lon = (sun_lon + moon_lon) % 360
     yoga_idx = int(sum_lon // (360.0 / 27.0))
     yoga_str = YOGAS[yoga_idx % 27]
     
-    # Karana
     karana_idx = int(diff // 6)
     if karana_idx == 0:
-        karana_str = KARANAS[10] # Kintughna
+        karana_str = KARANAS[10]
     elif karana_idx >= 57:
-        karana_str = KARANAS[7 + (karana_idx - 57)] # Shakuni, Chatushpada, Naga
+        karana_str = KARANAS[7 + (karana_idx - 57)]
     else:
         karana_str = KARANAS[(karana_idx - 1) % 7]
         
@@ -309,7 +305,6 @@ def analyze_gold_market(planet_data):
     return {"Signal": signal, "Bias": bias, "Score": score, "Bullish Factors": bullish_factors, "Bearish Factors": bearish_factors}
 
 def predict_upcoming_changes(base_dt: datetime.datetime, hours_ahead: int = 12):
-    """Scans the next N hours in 15-minute steps for Nakshatra, Pada, and Vedha changes."""
     initial_data = get_ephemeris_data(base_dt)
     prev_state = {p["Planet"]: p for p in initial_data}
 
@@ -328,11 +323,7 @@ def predict_upcoming_changes(base_dt: datetime.datetime, hours_ahead: int = 12):
 
             # 1. Nakshatra Change
             if curr_p["Nakshatra"] != fut_p["Nakshatra"]:
-                impact = "High Volatility Shift" if planet_name in ["Moon", "Sun", "Jupiter"] else "Moderate Shift"
-                if planet_name in MALEFICS:
-                    gold_impact = "🔴 Malefic star shift; watch for sudden price rejection or risk-off sentiment."
-                else:
-                    gold_impact = "🟢 Benefic star shift; potential positive support/momentum for gold."
+                gold_impact = "🔴 Malefic star shift; watch for sudden price rejection or risk-off sentiment." if planet_name in MALEFICS else "🟢 Benefic star shift; potential positive support/momentum for gold."
 
                 changes.append({
                     "Date & Time (IST)": future_dt.strftime("%d %b %Y, %I:%M %p"),
@@ -356,7 +347,7 @@ def predict_upcoming_changes(base_dt: datetime.datetime, hours_ahead: int = 12):
 
             # 3. Vedha Target Change
             if curr_p["Front Target"] != fut_p["Front Target"] or curr_p["Left Target"] != fut_p["Left Target"] or curr_p["Right Target"] != fut_p["Right Target"]:
-                target_desc = f"New Vedha Targets -> Front: {fut_p['Front Target']}, Left: {fut_p['Left Target']}, Right: {fut_p['Right Target']}"
+                target_desc = f"New Targets -> Front: {fut_p['Front Target']}, Left: {fut_p['Left Target']}, Right: {fut_p['Right Target']}"
                 
                 if planet_name in MALEFICS and fut_p["Front Target"] == prev_state["Sun"]["Nakshatra"]:
                     vedha_impact = "🔴 WARNING: Direct Malefic Vedha targeted at Sun. Strong bearish signal for Gold."
@@ -465,22 +456,16 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
         .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; }}
         .sbc-cell-svg {{ border: 1px solid #30363d; vertical-align: middle; padding: 0px; font-size: 10px; position: relative; }}
         
-        /* Outer Ring Nakshatras */
         .sbc-outer-svg {{ background-color: #21262d; color: #ffffff; font-weight: 700; }}
-        
-        /* Inner Grid Styling */
         .sbc-inner-varna {{ background-color: #161a23; color: #c9d1d9; font-size: 10px; font-weight: 600; }}
         .sbc-rashi-cell {{ background-color: #1f3a5f; color: #ffffff; font-weight: 800; font-size: 11px; border: 1px solid #2f5485; }}
         .sbc-tithi-cell {{ background-color: #382c21; color: #ffe8c5; font-weight: 700; font-size: 9px; line-height: 1.0; border: 1px solid #5a4838; }}
         
-        /* Planet Badges */
         .sbc-badge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; border-radius: 50%; font-size: 8px; font-weight: 800; margin: 0.5px; padding: 0 1px; }}
         .bg-malefic {{ background-color: #da3633; color: white; border: 1px solid #f85149; }}
         .bg-benefic {{ background-color: #238636; color: white; border: 1px solid #2ea043; }}
         
         .is-target {{ border: 2px solid #d29922 !important; background-color: #3c2d1d !important; }}
-        
-        /* Compact Footer Legend */
         .legend {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; font-size: 10px; color: #8b949e; font-weight: 500; }}
         .legend-item {{ display: flex; align-items: center; gap: 4px; }}
         .legend-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
@@ -569,7 +554,6 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
-# Custom CSS for high visual density and compact view
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 95%; }
