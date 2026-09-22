@@ -69,7 +69,6 @@ NAK_SHORT_NAMES = {
 
 # -------------------------------------------------------------------
 # EXACT SARVATOBHADRA CHAKRA INNER GRID (7x7 INNER MATRIX)
-# High-contrast mapping for clean rendering
 # -------------------------------------------------------------------
 VARNADIPANCHAK_GRID = {
     # 4 Outer Corner Vowels
@@ -267,7 +266,7 @@ def analyze_gold_market(planet_data):
     return {"Signal": signal, "Bias": bias, "Score": score, "Bullish Factors": bullish_factors, "Bearish Factors": bearish_factors}
 
 # -------------------------------------------------------------------
-# 5. ENHANCED HIGH-CONTRAST SVG + HTML GRID RENDERER
+# 5. FULLY VISIBLE & RESPONSIVE SVG + HTML GRID RENDERER
 # -------------------------------------------------------------------
 def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
     CELL_SIZE = 100
@@ -332,31 +331,45 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
     <html>
     <head>
     <style>
-        body {{ margin: 0; background-color: #12100e; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
-        .sbc-header {{ text-align: center; padding: 10px 0; background-color: #12100e; color: #fff8e7; }}
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; padding: 0; background-color: #12100e; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+        .sbc-card {{ 
+            position: relative; 
+            width: 100%; 
+            max-width: 720px; 
+            margin: 0 auto; 
+            background: #1a1614; 
+            border: 1px solid #443c35; 
+            border-radius: 8px; 
+            padding: 12px; 
+            box-shadow: 0 6px 24px rgba(0,0,0,0.6); 
+        }}
+        .sbc-header {{ text-align: center; padding-bottom: 8px; color: #fff8e7; }}
         .sbc-header h2 {{ margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }}
         .sbc-header .date {{ font-size: 13px; color: #d0c4b0; margin-top: 2px; font-weight: 500; }}
-        .sbc-card {{ position: relative; width: 100%; max-width: 720px; margin: 0 auto; background: #1a1614; border: 1px solid #443c35; border-radius: 8px; padding: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.6); }}
+        
         .sbc-container {{ position: relative; width: 100%; aspect-ratio: 1 / 1; }}
         .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; }}
-        .sbc-cell-svg {{ border: 1px solid #483f37; vertical-align: middle; padding: 2px; font-size: 13px; box-sizing: border-box; position: relative; }}
+        .sbc-cell-svg {{ border: 1px solid #483f37; vertical-align: middle; padding: 1px; font-size: 12px; position: relative; }}
         
         /* Outer Ring Nakshatras */
         .sbc-outer-svg {{ background-color: #28211c; color: #ffffff; font-weight: 700; }}
         
-        /* Inner Grid Styling (High Contrast Visibility) */
-        .sbc-inner-varna {{ background-color: #1a1614; color: #f0e2cf; font-size: 13px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
-        .sbc-rashi-cell {{ background-color: #1e3246; color: #ffffff; font-weight: 800; font-size: 15px; border: 1px solid #3a5878; }}
-        .sbc-tithi-cell {{ background-color: #382c21; color: #ffe8c5; font-weight: 700; font-size: 12px; line-height: 1.2; border: 1px solid #5a4838; }}
+        /* Inner Grid Styling */
+        .sbc-inner-varna {{ background-color: #1a1614; color: #f0e2cf; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
+        .sbc-rashi-cell {{ background-color: #1e3246; color: #ffffff; font-weight: 800; font-size: 14px; border: 1px solid #3a5878; }}
+        .sbc-tithi-cell {{ background-color: #382c21; color: #ffe8c5; font-weight: 700; font-size: 11px; line-height: 1.1; border: 1px solid #5a4838; }}
         
         /* Planet Badges */
-        .sbc-badge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 800; margin: 1px; box-shadow: 0 2px 5px rgba(0,0,0,0.6); padding: 0 3px; }}
+        .sbc-badge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 50%; font-size: 10px; font-weight: 800; margin: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.6); padding: 0 2px; }}
         .bg-malefic {{ background-color: #e74c3c; color: white; border: 1px solid #ff7d70; }}
         .bg-benefic {{ background-color: #27ae60; color: white; border: 1px solid #52e08d; }}
         
         .is-target {{ border: 2px solid #ff9f43 !important; background-color: #4a2d13 !important; }}
-        .legend {{ display: flex; justify-content: center; gap: 18px; margin-top: 12px; font-size: 12px; color: #d0c4b0; font-weight: 500; }}
-        .legend-item {{ display: flex; align-items: center; gap: 6px; }}
+        
+        /* Compact Responsive Footer Legend */
+        .legend {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 10px; font-size: 11px; color: #d0c4b0; font-weight: 500; }}
+        .legend-item {{ display: flex; align-items: center; gap: 5px; }}
         .legend-dot {{ width: 10px; height: 10px; border-radius: 50%; display: inline-block; }}
     </style>
     </head>
@@ -368,7 +381,7 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
         </div>
 
         <div style="position: relative;">
-            <div style="text-align: center; font-size: 11px; font-weight: 700; color: #b8a898; margin-bottom: 4px; letter-spacing: 1px;">NORTH</div>
+            <div style="text-align: center; font-size: 11px; font-weight: 700; color: #b8a898; margin-bottom: 3px; letter-spacing: 1px;">NORTH</div>
 
             <div class="sbc-container">
                 <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
@@ -399,8 +412,8 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
 
                 html += f"""
                 <td class='{cell_cls}'>
-                    <div style='font-size: 11px; color: #ffffff; font-weight: bold;'>{short_nak}</div>
-                    <div style='margin-top:2px;'>{badges}</div>
+                    <div style='font-size: 10px; color: #ffffff; font-weight: bold;'>{short_nak}</div>
+                    <div style='margin-top:1px;'>{badges}</div>
                 </td>
                 """
             else:
@@ -419,16 +432,16 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
                 </table>
             </div>
 
-            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #b8a898; margin-top: 6px; letter-spacing: 1px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #b8a898; margin-top: 4px; letter-spacing: 1px;">
                 <span>WEST</span>
                 <span>EAST</span>
             </div>
-            <div style="text-align: center; font-size: 11px; font-weight: 700; color: #b8a898; margin-top: 2px; letter-spacing: 1px;">SOUTH</div>
+            <div style="text-align: center; font-size: 11px; font-weight: 700; color: #b8a898; margin-top: 1px; letter-spacing: 1px;">SOUTH</div>
         </div>
 
         <div class="legend">
-            <div class="legend-item"><span style="border: 2px solid #ff9f43; background: #4a2d13; width: 12px; height: 12px; display: inline-block; border-radius: 2px;"></span> Sensitive star</div>
-            <div class="legend-item"><span style="border-top: 2px dashed #aaa; width: 16px; display: inline-block;"></span> Planet's vedha ray</div>
+            <div class="legend-item"><span style="border: 2px solid #ff9f43; background: #4a2d13; width: 10px; height: 10px; display: inline-block; border-radius: 2px;"></span> Sensitive star</div>
+            <div class="legend-item"><span style="border-top: 2px dashed #aaa; width: 14px; display: inline-block;"></span> Planet's vedha ray</div>
             <div class="legend-item"><span class="legend-dot" style="background: #e74c3c;"></span> Malefic vedha</div>
             <div class="legend-item"><span class="legend-dot" style="background: #27ae60;"></span> Benefic vedha</div>
         </div>
@@ -577,7 +590,8 @@ selected_planets = st.multiselect(
 )
 
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets, effective_datetime)
-st.components.v1.html(sbc_html, height=780, scrolling=False)
+# Increased height to 920px to prevent clipping at the bottom
+st.components.v1.html(sbc_html, height=920, scrolling=False)
 
 # Compact Table for Planetary Vedha Details
 st.divider()
@@ -606,7 +620,7 @@ st.dataframe(
         "Planet": st.column_config.TextColumn("Planet", width="small"),
         "Nakshatra": st.column_config.TextColumn("Nakshatra", width="medium"),
         "Speed (°/d)": st.column_config.TextColumn("Speed (°/d)", width="small"),
-        "Motion": st.column_config.TextColumn("Motion", width="medium"),
+        "Motion": p_motion := st.column_config.TextColumn("Motion", width="medium"),
         "Primary Aspect": st.column_config.TextColumn("Primary Aspect", width="medium"),
         "🎯 Front Vedha": st.column_config.TextColumn("🎯 Front Vedha", width="medium"),
         "⬅️ Left Vedha": st.column_config.TextColumn("⬅️ Left Vedha", width="medium"),
