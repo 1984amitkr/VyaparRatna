@@ -4,14 +4,25 @@ import datetime
 import numpy as np
 import plotly.graph_objects as go
 
+# Import Swiss Ephemeris for accurate topocentric calculations
+try:
+    import swisseph as swe
+    HAS_SWISSEPH = True
+except ImportError:
+    HAS_SWISSEPH = False
+
 # Set Streamlit Page Config
 st.set_page_config(
-    page_title="Vyapar Ratna - Gold Astro Engine V3 (Vedha & Aspects)",
+    page_title="Vyapar Ratna - Gold Astro Engine V3.5 (Mumbai Ephemeris)",
     page_icon="🪙",
     layout="wide"
 )
 
-# --- ASTRONOMICAL & VEDIC CONSTANTS ---
+# --- MUMBAI LOCATION CONSTANTS ---
+MUMBAI_LAT = 18.9220
+MUMBAI_LON = 72.8347
+MUMBAI_ELEV = 14.0  # meters above sea level
+
 ZODIAC_SIGNS = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
@@ -25,8 +36,6 @@ NAKSHATRAS = [
     "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
 ]
 
-# Vedha Map (Opposite / Obstruction Nakshatra Index Pairs: 0-indexed 0 to 26)
-# Standard Panchakshari / Latta / Saptashalaka Vedha pairs
 VEDHA_PAIRS = {
     0: 13, 1: 12, 2: 11, 3: 10, 4: 9, 5: 8, 6: 7,
     7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1, 13: 0,
@@ -34,77 +43,132 @@ VEDHA_PAIRS = {
     21: 19, 22: 18, 23: 17, 24: 16, 25: 15, 26: 14
 }
 
-# Base Weight Matrix
 PLANET_WEIGHTS = {
     "Sun": 1.5, "Moon": 0.8, "Mercury": 1.0, "Venus": 1.2,
     "Mars": 2.5, "Jupiter": 2.0, "Saturn": -2.5, "Rahu": -1.8, "Ketu": -1.2
 }
 
-def calculate_keplerian_positions(calc_date):
-    """Calculates Sidereal (Lahiri) planetary longitudes, Pada, and Retrograde motion."""
-    d = (datetime.datetime.combine(calc_date, datetime.time(12, 0)) - datetime.datetime(2000, 1, 1, 12, 0)).days
+def calculate_mumbai_ephemeris(calc_date, calc_time):
+    """Calculates topocentric Sidereal (Lahiri) longitudes for Mumbai, India."""
     
-    # Sidereal mean daily motion algorithms
-    sun_lon = (280.460 + 0.9856474 * d) % 360
-    moon_lon = (218.316 + 13.176396 * d) % 360
-    mercury_lon = (252.251 + 4.092334 * d) % 360
-    venus_lon = (181.979 + 1.602130 * d) % 360
-    mars_lon = (355.433 + 0.524033 * d) % 360
-    jupiter_lon = (34.351 + 0.083091 * d) % 360
-    saturn_lon = (50.077 + 0.033459 * d) % 360
-    rahu_lon = (125.044 - 0.0529539 * d) % 360
-    ketu_lon = (rahu_lon + 180.0) % 360
-
-    ayanamsha = 23.85 + (calc_date.year - 2000) * (50.29 / 3600.0)
-
-    bodies = {
-        "Sun": (sun_lon - ayanamsha) % 360,
-        "Moon": (moon_lon - ayanamsha) % 360,
-        "Mercury": (mercury_lon - ayanamsha) % 360,
-        "Venus": (venus_lon - ayanamsha) % 360,
-        "Mars": (mars_lon - ayanamsha) % 360,
-        "Jupiter": (jupiter_lon - ayanamsha) % 360,
-        "Saturn": (saturn_lon - ayanamsha) % 360,
-        "Rahu": (rahu_lon - ayanamsha) % 360,
-        "Ketu": (ketu_lon - ayanamsha) % 360,
-    }
-
-    synodic_retro = {
-        "Mars": np.sin(np.radians((mars_lon - sun_lon) % 360)) < -0.85,
-        "Jupiter": np.sin(np.radians((jupiter_lon - sun_lon) % 360)) < -0.90,
-        "Saturn": np.sin(np.radians((saturn_lon - sun_lon) % 360)) < -0.90,
-        "Mercury": np.sin(np.radians((mercury_lon - sun_lon) % 360)) < -0.75,
-        "Venus": np.sin(np.radians((venus_lon - sun_lon) % 360)) < -0.80,
-    }
-
-    positions = {}
-    for name, sid_lon in bodies.items():
-        sign_idx = int(sid_lon // 30)
+    # Combine date and time
+    dt = datetime.datetime.combine(calc_date, calc_time)
+    
+    # Convert IST (UTC+5:30) to UTC
+    utc_dt = dt - datetime.timedelta(hours=5, minutes=30)
+    
+    if HAS_SWISSEPH:
+        # Swiss Ephemeris Setup
+        swe.set_sid_mode(swe.SIDM_LAHIRI)
         
-        # 27 Nakshatras = 13.333 deg each. 4 Padas per Nakshatra = 3.333 deg each.
+        # Set Topocentric Location for Mumbai
+        swe.set_topo(MUMBAI_LON, MUMBAI_LAT, MUMBAI_ELEV)
+        
+        # Calculate Julian Day in UT
+        julian_day = swe.julday(
+            utc_dt.year, utc_dt.month, utc_dt.day,
+            utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+        )
+        
+        bodies_map = {
+            "Sun": swe.SUN,
+            "Moon": swe.MOON,
+            "Mercury": swe.MERCURY,
+            "Venus": swe.VENUS,
+            "Mars": swe.MARS,
+            "Jupiter": swe.JUPITER,
+            "Saturn": swe.SATURN,
+            "Rahu": swe.MEAN_NODE,
+        }
+        
+        flags = swe.FLG_SIDEREAL | swe.FLG_SPEED | swe.FLG_TOPOCTR
+        positions = {}
+        
+        for name, planet_id in bodies_map.items():
+            res, _ = swe.calc_ut(julian_day, planet_id, flags)
+            sid_lon = res[0] % 360
+            speed = res[3]
+            is_retro = speed < 0
+            
+            positions[name] = {
+                "longitude": sid_lon,
+                "speed": speed,
+                "is_retrograde": is_retro
+            }
+            
+        # Calculate Ketu (180 deg opposite Rahu)
+        rahu_lon = positions["Rahu"]["longitude"]
+        positions["Ketu"] = {
+            "longitude": (rahu_lon + 180.0) % 360,
+            "speed": positions["Rahu"]["speed"],
+            "is_retrograde": True
+        }
+        
+    else:
+        # Fallback approximation adjusted for Mumbai offset
+        d = (utc_dt - datetime.datetime(2000, 1, 1, 12, 0)).total_seconds() / 86400.0
+        
+        sun_lon = (280.460 + 0.9856474 * d) % 360
+        moon_lon = (218.316 + 13.176396 * d) % 360
+        mercury_lon = (252.251 + 4.092334 * d) % 360
+        venus_lon = (181.979 + 1.602130 * d) % 360
+        mars_lon = (355.433 + 0.524033 * d) % 360
+        jupiter_lon = (34.351 + 0.083091 * d) % 360
+        saturn_lon = (50.077 + 0.033459 * d) % 360
+        rahu_lon = (125.044 - 0.0529539 * d) % 360
+        ketu_lon = (rahu_lon + 180.0) % 360
+
+        ayanamsha = 23.85 + (calc_date.year - 2000) * (50.29 / 3600.0)
+
+        bodies = {
+            "Sun": (sun_lon - ayanamsha) % 360,
+            "Moon": (moon_lon - ayanamsha) % 360,
+            "Mercury": (mercury_lon - ayanamsha) % 360,
+            "Venus": (venus_lon - ayanamsha) % 360,
+            "Mars": (mars_lon - ayanamsha) % 360,
+            "Jupiter": (jupiter_lon - ayanamsha) % 360,
+            "Saturn": (saturn_lon - ayanamsha) % 360,
+            "Rahu": (rahu_lon - ayanamsha) % 360,
+            "Ketu": (ketu_lon - ayanamsha) % 360,
+        }
+
+        synodic_retro = {
+            "Mars": np.sin(np.radians((mars_lon - sun_lon) % 360)) < -0.85,
+            "Jupiter": np.sin(np.radians((jupiter_lon - sun_lon) % 360)) < -0.90,
+            "Saturn": np.sin(np.radians((saturn_lon - sun_lon) % 360)) < -0.90,
+            "Mercury": np.sin(np.radians((mercury_lon - sun_lon) % 360)) < -0.75,
+            "Venus": np.sin(np.radians((venus_lon - sun_lon) % 360)) < -0.80,
+        }
+
+        positions = {}
+        for name, sid_lon in bodies.items():
+            is_retro = synodic_retro.get(name, False)
+            if name in ["Rahu", "Ketu"]:
+                is_retro = True
+            positions[name] = {
+                "longitude": sid_lon,
+                "speed": -0.1 if is_retro else 1.0,
+                "is_retrograde": is_retro
+            }
+
+    # Enrich positions with Sign, Nakshatra, and Pada
+    for name, data in positions.items():
+        sid_lon = data["longitude"]
+        sign_idx = int(sid_lon // 30)
         nak_exact = sid_lon / (360.0 / 27.0)
         nak_idx = int(nak_exact)
         rem_deg = (nak_exact - nak_idx) * (360.0 / 27.0)
         pada = int(rem_deg // (360.0 / 108.0)) + 1
 
-        is_retro = synodic_retro.get(name, False)
-        if name in ["Rahu", "Ketu"]:
-            is_retro = True
-
-        positions[name] = {
-            "longitude": sid_lon,
-            "sign": ZODIAC_SIGNS[sign_idx],
-            "sign_idx": sign_idx,
-            "nakshatra": NAKSHATRAS[nak_idx],
-            "nak_idx": nak_idx,
-            "pada": pada,
-            "is_retrograde": is_retro
-        }
+        data["sign"] = ZODIAC_SIGNS[sign_idx]
+        data["sign_idx"] = sign_idx
+        data["nakshatra"] = NAKSHATRAS[nak_idx]
+        data["nak_idx"] = nak_idx
+        data["pada"] = pada
 
     return positions
 
 def calculate_aspects(positions):
-    """Calculates Western major aspects and Vedic Special Drishti between all planets."""
     aspects = []
     planets = list(positions.keys())
     
@@ -118,7 +182,6 @@ def calculate_aspects(positions):
             if diff > 180:
                 diff = 360 - diff
 
-            # Major Western Aspects (Orb +/- 6 degrees)
             aspect_type = None
             weight = 0.0
             
@@ -138,15 +201,14 @@ def calculate_aspects(positions):
                 aspect_type = "Sextile (60°)"
                 weight = 1.0
 
-            # Vedic Special Drishti Rules
             sign_diff = (positions[p2]["sign_idx"] - positions[p1]["sign_idx"]) % 12
-            if p1 == "Mars" and sign_diff in [3, 7]:  # 4th & 8th aspect
+            if p1 == "Mars" and sign_diff in [3, 7]:
                 aspect_type = f"Mars Special Drishti ({sign_diff + 1}th House)"
                 weight = -1.8
-            elif p1 == "Jupiter" and sign_diff in [4, 8]:  # 5th & 9th aspect
+            elif p1 == "Jupiter" and sign_diff in [4, 8]:
                 aspect_type = f"Jupiter Special Drishti ({sign_diff + 1}th House)"
                 weight = 2.5
-            elif p1 == "Saturn" and sign_diff in [2, 9]:  # 3rd & 10th aspect
+            elif p1 == "Saturn" and sign_diff in [2, 9]:
                 aspect_type = f"Saturn Special Drishti ({sign_diff + 1}th House)"
                 weight = -2.2
 
@@ -162,7 +224,6 @@ def calculate_aspects(positions):
     return aspects
 
 def calculate_vedha(positions):
-    """Calculates Nakshatra Vedha (Planetary Obstructions/Afflictions)."""
     vedha_events = []
     malefics = ["Saturn", "Mars", "Rahu", "Ketu", "Sun"]
     
@@ -172,7 +233,6 @@ def calculate_vedha(positions):
         
         for p2, data2 in positions.items():
             if p1 != p2 and data2["nak_idx"] == target_vedha_nak:
-                # If a malefic is obstructing a benefic or Sun/Moon
                 is_malefic_vedha = p2 in malefics
                 impact = -2.0 if is_malefic_vedha else 0.5
                 
@@ -187,11 +247,9 @@ def calculate_vedha(positions):
                 
     return vedha_events
 
-def render_realtime_ephemeris_chart(positions, aspects):
-    """Renders a 360-degree interactive polar ephemeris map using Plotly."""
+def render_realtime_ephemeris_chart(positions):
     fig = go.Figure()
 
-    # Draw Zodiac Sign Boundaries (Every 30 degrees)
     for i, sign in enumerate(ZODIAC_SIGNS):
         angle = i * 30
         fig.add_trace(go.Scatterpolar(
@@ -202,7 +260,6 @@ def render_realtime_ephemeris_chart(positions, aspects):
             showlegend=False,
             hoverinfo="none"
         ))
-        # Label Zodiac Signs
         fig.add_trace(go.Scatterpolar(
             r=[11],
             theta=[angle + 15],
@@ -212,7 +269,6 @@ def render_realtime_ephemeris_chart(positions, aspects):
             showlegend=False
         ))
 
-    # Plot Planetary Positions
     planet_colors = {
         "Sun": "#FFD700", "Moon": "#C0C0C0", "Mercury": "#32CD32",
         "Venus": "#FF69B4", "Mars": "#FF4500", "Jupiter": "#FFA500",
@@ -258,25 +314,30 @@ def render_realtime_ephemeris_chart(positions, aspects):
 
     return fig
 
-# --- MAIN DASHBOARD APP ---
-st.title("🪙 Vyapar Ratna Gold Astro Engine (GAS V3)")
-st.caption("Realtime Ephemeris | Vedha Engine | Nakshatra Pada | Aspectual Drishti Analysis")
+# --- STREAMLIT DASHBOARD UI ---
+st.title("🪙 Vyapar Ratna Gold Astro Engine V3.5")
+st.caption("📍 Location Locked: **Mumbai, India** (18.9220° N, 72.8347° E) | IST Timezone (UTC+5:30)")
 
-st.sidebar.header("🗓️ Calculation Controls")
-calc_date = st.sidebar.date_input("Select Evaluation Date", datetime.date.today())
+st.sidebar.header("🗓️ Mumbai Time Controls")
+calc_date = st.sidebar.date_input("Evaluation Date", datetime.date.today())
+calc_time = st.sidebar.time_input("Evaluation Time (IST)", datetime.time(9, 15))  # Default to MCX Market Open
 
-positions = calculate_keplerian_positions(calc_date)
+# Engine Status Badge
+if HAS_SWISSEPH:
+    st.sidebar.success("Engine: High-Precision Swiss Ephemeris")
+else:
+    st.sidebar.warning("Engine: Approximation Engine (Install `pyswisseph` for Swiss Ephemeris)")
+
+positions = calculate_mumbai_ephemeris(calc_date, calc_time)
 aspects = calculate_aspects(positions)
 vedhas = calculate_vedha(positions)
 
-# --- COMBINED EFFECT COMPUTATION ---
 base_score = sum([PLANET_WEIGHTS.get(p, 0.0) * (-1.2 if data["is_retrograde"] and p in ["Saturn", "Rahu", "Ketu"] else 1.0) for p, data in positions.items()])
 aspect_score = sum([a["Weight"] for a in aspects])
 vedha_score = sum([v["Score Impact"] for v in vedhas])
 
 total_score = base_score + aspect_score + vedha_score
 
-# --- REGIME DEFINITION ---
 if total_score >= 7.0:
     regime = "STRONG BULLISH REGIME"
     color = "green"
@@ -298,7 +359,6 @@ else:
     color = "red"
     action = "SHORT TRADES PERMITTED — Align with Technical Breakdown"
 
-# --- TOP METRICS ---
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Composite Astro Score", f"{total_score:+.2f}")
 m2.metric("Base Placement Score", f"{base_score:+.2f}")
@@ -310,18 +370,16 @@ st.info(f"**Execution Directive:** {action}")
 
 st.divider()
 
-# --- GRAPHICAL REALTIME EPHEMERIS ---
-st.subheader("🪐 Interactive 360° Realtime Ephemeris Wheel")
-fig = render_realtime_ephemeris_chart(positions, aspects)
+st.subheader("🪐 Mumbai Topocentric 360° Ephemeris Wheel")
+fig = render_realtime_ephemeris_chart(positions)
 st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# --- DETAILED TABULAR BREAKDOWNS ---
 tab1, tab2, tab3 = st.columns(3)
 
 with tab1:
-    st.subheader("📌 Positions & Pada")
+    st.subheader("📌 Positions & Pada (Mumbai IST)")
     pos_df = []
     for p, val in positions.items():
         pos_df.append({
@@ -345,4 +403,4 @@ with tab3:
     if vedhas:
         st.dataframe(pd.DataFrame(vedhas)[["Obstructing Planet", "Target Planet", "Target Nakshatra", "Score Impact"]], hide_index=True, use_container_width=True)
     else:
-        st.write("No active planetary Vedha detected for this date.")
+        st.write("No active planetary Vedha detected for this date/time.")
