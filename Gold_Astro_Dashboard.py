@@ -410,8 +410,22 @@ st.caption(
 
 # Sidebar Configuration Controls
 st.sidebar.header("🗓️ Mumbai Time Controls")
-calc_date = st.sidebar.date_input("Evaluation Date", datetime.date.today())
-calc_time = st.sidebar.time_input("Evaluation Time (IST)", datetime.time(9, 15))  # Default to MCX Market Open Time
+
+# Session State Initialization for Date and Time
+now = datetime.datetime.now()
+if "calc_date" not in st.session_state:
+    st.session_state.calc_date = now.date()
+if "calc_time" not in st.session_state:
+    st.session_state.calc_time = now.time()
+
+# Button to reset state to the current date and time
+if st.sidebar.button("📅 Go to Current Date & Time", use_container_width=True):
+    current_now = datetime.datetime.now()
+    st.session_state.calc_date = current_now.date()
+    st.session_state.calc_time = current_now.time()
+
+calc_date = st.sidebar.date_input("Evaluation Date", key="calc_date")
+calc_time = st.sidebar.time_input("Evaluation Time (IST)", key="calc_time")
 
 if HAS_SWISSEPH:
     st.sidebar.success("Engine: Swiss Ephemeris (Geocentric Sidereal)")
