@@ -1,10 +1,15 @@
 import streamlit as st
 import datetime
+import zoneinfo
 import swisseph as swe
 
 # -------------------------------------------------------------------
 # 1. CONSTANTS & SBC GRID CONFIGURATION
 # -------------------------------------------------------------------
+MUMBAI_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
+MUMBAI_LAT = 19.0760
+MUMBAI_LON = 72.8777
+
 NAKSHATRAS_28 = [
     "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya", "Ashlesha",
     "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Svati", "Vishakha",
@@ -17,7 +22,6 @@ AVERAGE_DAILY_SPEEDS = {
     "Jupiter": 0.0831, "Venus": 1.200, "Saturn": 0.0335, "Rahu": -0.0529, "Ketu": -0.0529
 }
 
-# Malefic/Benefic Classification for Financial Astrology Vedha Impact
 MALEFICS = ["Sun", "Mars", "Saturn", "Rahu", "Ketu"]
 BENEFICS = ["Jupiter", "Venus", "Mercury", "Moon"]
 
@@ -98,8 +102,15 @@ def calculate_vedha(planet: str, nakshatra: str, speed: float):
     }
 
 def get_ephemeris_data(dt: datetime.datetime):
+    # Convert local IST time to UTC Julian Day for Swisseph
+    utc_dt = dt.astimezone(datetime.timezone.utc)
     swe.set_sid_mode(swe.SIDM_LAHIRI)
-    julian_day = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0)
+    
+    # Julian day calculation taking UTC time
+    julian_day = swe.julday(
+        utc_dt.year, utc_dt.month, utc_dt.day, 
+        utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+    )
 
     planet_data = []
     for p_name, p_id in PLANET_IDS.items():
@@ -141,30 +152,25 @@ def analyze_gold_market(planet_data):
     sun = p_map["Sun"]
     jupiter = p_map["Jupiter"]
     mars = p_map["Mars"]
-    saturn = p_map["Saturn"]
-    rahu = p_map["Rahu"]
 
     bullish_factors = []
     bearish_factors = []
     score = 0
 
-    # 1. Sun Motion & Vedha Impact (Primary Gold Significator)
     if "Atichara" in sun["Motion"]:
         score += 2
-        bullish_factors.append("Sun is in Atichara (Fast Direct) — Sudden upward momentum for Gold.")
+        bullish_factors.append("Sun is in Atichara (Fast Direct) — Upward gold momentum.")
     elif "Manda" in sun["Motion"]:
         score -= 1
-        bearish_factors.append("Sun is Manda (Slow) — Stagnant or slightly downward bias.")
+        bearish_factors.append("Sun is Manda (Slow) — Stagnant/slight downward bias.")
 
-    # 2. Jupiter Impact (Financial Expansion / Gold Secondary Significator)
     if "Vakra" in jupiter["Motion"]:
         score += 1.5
-        bullish_factors.append("Jupiter Retrograde (Vakra) — Increases safe-haven physical asset demand.")
+        bullish_factors.append("Jupiter Retrograde (Vakra) — Increases physical gold safe-haven demand.")
     elif "Atichara" in jupiter["Motion"]:
         score += 1
-        bullish_factors.append("Jupiter in Atichara — Favorable financial expansion for metals.")
+        bullish_factors.append("Jupiter in Atichara — Positive financial expansion.")
 
-    # 3. Malefic Affliction on Sun's Nakshatra
     sun_nak = sun["Nakshatra"]
     afflicting_malefics = []
     for p in planet_data:
@@ -174,128 +180,162 @@ def analyze_gold_market(planet_data):
 
     if afflicting_malefics:
         score -= 2 * len(afflicting_malefics)
-        bearish_factors.append(f"Asubha Vedha on Sun's Nakshatra ({sun_nak}) by: {', '.join(afflicting_malefics)} — Causes price drops/corrections.")
+        bearish_factors.append(f"Asubha Vedha on Sun's Nakshatra ({sun_nak}) by: {', '.join(afflicting_malefics)}.")
 
-    # 4. Malefic Affliction on Jupiter's Nakshatra
     jup_nak = jupiter["Nakshatra"]
     jup_afflictions = [p["Planet"] for p in planet_data if p["Planet"] in MALEFICS and jup_nak in p["All Targets"]]
     if jup_afflictions:
         score -= 1.5 * len(jup_afflictions)
-        bearish_factors.append(f"Jupiter's Nakshatra ({jup_nak}) under Vedha from {', '.join(jup_afflictions)} — Market volatility/pressure.")
+        bearish_factors.append(f"Jupiter's Nakshatra ({jup_nak}) under Vedha from {', '.join(jup_afflictions)}.")
 
-    # Signal Generation
     if score >= 2:
         signal = "BULLISH 📈"
         bias = "Buy on Dips / Positive Sentiment"
-        color = "green"
     elif score <= -2:
         signal = "BEARISH 📉"
         bias = "Sell on Rallies / Downward Pressure"
-        color = "red"
     else:
         signal = "NEUTRAL / VOLATILE ⚠️"
         bias = "Range-Bound / Exercise Caution"
-        color = "orange"
 
     return {
         "Signal": signal,
         "Bias": bias,
-        "Color": color,
         "Score": score,
         "Bullish Factors": bullish_factors,
-        "Bearish Factors": bearish_factors,
-        "Sun Nakshatra": sun_nak,
-        "Jupiter Nakshatra": jup_nak,
-        "Mars Nakshatra": mars["Nakshatra"]
+        "Bearish Factors": bearish_factors
     }
 
 # -------------------------------------------------------------------
-# 4. STREAMLIT UI
+# 4. STREAMLIT APP CONFIGURATION & STATE
 # -------------------------------------------------------------------
-st.set_page_config(page_title="SBC & Gold Trading Analysis Engine", layout="wide")
+st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
-st.title("🔮 Sarvatobhadra Chakra (SBC) Engine")
-st.subheader("Real-Time Planetary Motion, Vedha & Gold Trading Analysis")
+if "mode" not in st.session_state:
+    st.session_state.mode = "LIVE"
 
-# Sidebar
-st.sidebar.header("Date & Time Picker")
-selected_date = st.sidebar.date_input("Select Date", datetime.date.today())
-selected_time = st.sidebar.time_input("Select Time (UTC/Local)", datetime.time(12, 0))
-
-combined_datetime = datetime.datetime.combine(selected_date, selected_time)
-
-# Calculate Data
-data = get_ephemeris_data(combined_datetime)
-gold = analyze_gold_market(data)
-
-st.markdown(f"**Calculated Positions for:** `{combined_datetime.strftime('%Y-%m-%d %H:%M:%S')}`")
+st.title("🏆 VyaparRatna SBC Gold Trading Engine")
+st.caption("Sarvatobhadra Chakra Analysis • Mumbai Reference Location (19.0760° N, 72.8777° E)")
 
 # -------------------------------------------------------------------
-# GOLD TRADING ANALYSIS DASHBOARD
+# 5. SIDEBAR: TIME & MODE CONTROL
 # -------------------------------------------------------------------
-st.divider()
-st.header("🏆 Gold Trading Analysis (Suvarna Vedha)")
+st.sidebar.header("🕹️ Mode & Time Controller")
 
-g_col1, g_col2, g_col3 = st.columns([1, 1, 2])
+# Mode status display
+if st.session_state.mode == "LIVE":
+    st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
+else:
+    st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
 
-with g_col1:
-    st.metric("Gold Market Signal", gold["Signal"])
-with g_col2:
-    st.metric("Market Bias", gold["Bias"])
-with g_col3:
-    st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
+# Button to reset to Live Mode
+if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
+    st.session_state.mode = "LIVE"
+    st.rerun()
 
-st.markdown("#### Market Drivers & SBC Factor Breakdown")
-col_a, col_b = st.columns(2)
+st.sidebar.markdown("---")
+st.sidebar.subheader("📅 Date & Time Input")
 
-with col_a:
-    st.success("🟢 **Bullish Factors**")
-    if gold["Bullish Factors"]:
-        for factor in gold["Bullish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No strong bullish SBC factors present.")
+# Compute current IST time
+now_mumbai = datetime.datetime.now(MUMBAI_TZ)
 
-with col_b:
-    st.error("🔴 **Bearish / Risk Factors**")
-    if gold["Bearish Factors"]:
-        for factor in gold["Bearish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No significant malefic Vedha afflicting Gold significators.")
+if st.session_state.mode == "LIVE":
+    active_date = now_mumbai.date()
+    active_time = now_mumbai.time()
+else:
+    active_date = st.session_state.get("hist_date", now_mumbai.date())
+    active_time = st.session_state.get("hist_time", now_mumbai.time())
 
-st.divider()
+selected_date = st.sidebar.date_input("Select Date", active_date)
+selected_time = st.sidebar.time_input("Select Time (IST)", active_time)
+
+# Detect if user picked a past/different date/time manually
+combined_input = datetime.datetime.combine(selected_date, selected_time, tzinfo=MUMBAI_TZ)
+time_diff = abs((combined_input - now_mumbai).total_seconds())
+
+if time_diff > 60:  # If time selection is modified beyond 1 minute from live
+    st.session_state.mode = "HISTORICAL"
+    st.session_state.hist_date = selected_date
+    st.session_state.hist_time = selected_time
+
+effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
 
 # -------------------------------------------------------------------
-# FULL PLANETARY VEDHA TABLE
+# 6. DASHBOARD FRAGMENT (AUTO-REFRESH LOGIC)
 # -------------------------------------------------------------------
-st.subheader("📊 Planetary Vedha & Motion Status Table")
+# Use run_every="300s" ONLY when in LIVE mode; None when HISTORICAL
+refresh_interval = "300s" if st.session_state.mode == "LIVE" else None
 
-st.dataframe(
-    data,
-    column_config={
-        "Planet": "Planet",
-        "Longitude_str": "Sidereal Degree",
-        "Nakshatra": "Host Nakshatra",
-        "Motion": st.column_config.TextColumn("Motion State", help="Vakra, Atichara, Manda, or Sama"),
-        "Primary Vedha": st.column_config.TextColumn("Active Primary Vedha", help="Shifted by planetary speed/motion"),
-    },
-    use_container_width=True
-)
+@st.fragment(run_every=refresh_interval)
+def render_dashboard(dt: datetime.datetime, mode: str):
+    data = get_ephemeris_data(dt)
+    gold = analyze_gold_market(data)
 
-st.divider()
+    st.info(
+        f"**Active Calculation Timestamp:** `{dt.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
+        f"| **Location:** Mumbai, India "
+        f"| **Refresh State:** {'🟢 Auto-Refreshing (5m)' if mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
+    )
 
-# Detailed Planetary Inspection Cards
-st.subheader("🔍 Planetary Vedha Detail Breakdown")
-cols = st.columns(3)
-for idx, p in enumerate(data):
-    with cols[idx % 3]:
-        with st.container(border=True):
-            st.markdown(f"### {p['Planet']}")
-            st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
-            st.write(f"**Motion:** `{p['Motion']}`")
-            st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
-            st.markdown("---")
-            st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
-            st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
-            st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
+    # Metrics
+    st.divider()
+    st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
+    g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
+
+    with g_col1:
+        st.metric("Gold Market Signal", gold["Signal"])
+    with g_col2:
+        st.metric("Market Bias", gold["Bias"])
+    with g_col3:
+        st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.success("🟢 **Bullish Factors**")
+        if gold["Bullish Factors"]:
+            for factor in gold["Bullish Factors"]:
+                st.write(f"- {factor}")
+        else:
+            st.write("No strong bullish SBC factors present.")
+
+    with col_b:
+        st.error("🔴 **Bearish / Risk Factors**")
+        if gold["Bearish Factors"]:
+            for factor in gold["Bearish Factors"]:
+                st.write(f"- {factor}")
+        else:
+            st.write("No significant malefic Vedha afflicting Gold significators.")
+
+    # Planetary Vedha Table
+    st.divider()
+    st.subheader("🪐 Planetary Positions & Vedha Paths")
+    st.dataframe(
+        data,
+        column_config={
+            "Planet": "Planet",
+            "Longitude_str": "Sidereal Degree",
+            "Nakshatra": "Host Nakshatra",
+            "Motion": st.column_config.TextColumn("Motion State", help="Vakra, Atichara, Manda, or Sama"),
+            "Primary Vedha": st.column_config.TextColumn("Active Primary Vedha", help="Shifted by planetary speed/motion"),
+        },
+        use_container_width=True
+    )
+
+    # Detailed Cards
+    st.divider()
+    st.subheader("🔍 Planetary Vedha Details")
+    cols = st.columns(3)
+    for idx, p in enumerate(data):
+        with cols[idx % 3]:
+            with st.container(border=True):
+                st.markdown(f"### {p['Planet']}")
+                st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
+                st.write(f"**Motion:** `{p['Motion']}`")
+                st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
+                st.markdown("---")
+                st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
+                st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
+                st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
+
+# Render the dashboard with current configuration
+render_dashboard(effective_datetime, st.session_state.mode)
