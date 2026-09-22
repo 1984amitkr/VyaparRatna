@@ -13,15 +13,64 @@ except ImportError:
 
 # --- STREAMLIT PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Vyapar Ratna - Gold Astro Engine V4 (Geocentric Sidereal Mumbai)",
+    page_title="Vyapar Ratna - Gold Astro Engine V4",
     page_icon="🪙",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# --- CUSTOM AESTHETICS (CSS STYLING) ---
+st.markdown("""
+    <style>
+        /* Main background & typography adjustments */
+        .stApp {
+            background-color: #0F172A;
+            color: #F8FAFC;
+        }
+        /* Custom metric card styling */
+        div[data-testid="stMetric"] {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        div[data-testid="stMetricLabel"] {
+            color: #94A3B8 !important;
+            font-size: 0.85rem !important;
+            font-weight: 600;
+        }
+        div[data-testid="stMetricValue"] {
+            color: #FFD700 !important;
+            font-weight: 700;
+        }
+        /* Sidebar styling */
+        section[data-testid="stSidebar"] {
+            background-color: #1E293B;
+            border-right: 1px solid rgba(255, 215, 0, 0.1);
+        }
+        /* Primary button styling */
+        .stButton>button {
+            width: 100%;
+            background: linear-gradient(90deg, #D97706 0%, #B45309 100%);
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+        }
+        .stButton>button:hover {
+            background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- MUMBAI LOCATION & GEOCENTRIC CONSTANTS ---
 MUMBAI_LAT = 18.9220
 MUMBAI_LON = 72.8347
-MUMBAI_ELEV = 14.0  # Elevation in meters
+MUMBAI_ELEV = 14.0
 
 ZODIAC_SIGNS = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -36,7 +85,6 @@ NAKSHATRAS = [
     "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
 ]
 
-# Vedha Map (Saptashalaka / Panchakshari Nakshatra Obstruction Index Pairs 0-26)
 VEDHA_PAIRS = {
     0: 13, 1: 12, 2: 11, 3: 10, 4: 9, 5: 8, 6: 7,
     7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1, 13: 0,
@@ -44,48 +92,33 @@ VEDHA_PAIRS = {
     21: 19, 22: 18, 23: 17, 24: 16, 25: 15, 26: 14
 }
 
-# Planetary Weight Matrix for Gold Astro Scoring Engine
 PLANET_WEIGHTS = {
     "Sun": 1.5, "Moon": 0.8, "Mercury": 1.0, "Venus": 1.2,
     "Mars": 2.5, "Jupiter": 2.0, "Saturn": -2.5, "Rahu": -1.8, "Ketu": -1.2
 }
 
 
-# --- ASTRONOMICAL ENGINE (GEOCENTRIC SIDEREAL - LAHIRI) ---
-def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time):
-    """
-    Calculates exact Geocentric Sidereal (Lahiri Ayanamsha) longitudes,
-    retrograde status, Nakshatras, and Padas tuned for Mumbai Time (IST, UTC+5:30).
-    """
+# --- CACHED ASTRONOMICAL ENGINE ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date: datetime.date, calc_time: datetime.time):
     dt = datetime.datetime.combine(calc_date, calc_time)
-    
-    # Convert IST to UTC (IST is UTC + 5 hours 30 mins)
     utc_dt = dt - datetime.timedelta(hours=5, minutes=30)
     
     positions = {}
     
     if HAS_SWISSEPH:
-        # 1. Set Ayanamsha to Lahiri (Chitra Paksha)
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        
-        # 2. Calculate Julian Day in UTC
         julian_day = swe.julday(
             utc_dt.year, utc_dt.month, utc_dt.day,
             utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
         )
         
         bodies_map = {
-            "Sun": swe.SUN,
-            "Moon": swe.MOON,
-            "Mercury": swe.MERCURY,
-            "Venus": swe.VENUS,
-            "Mars": swe.MARS,
-            "Jupiter": swe.JUPITER,
-            "Saturn": swe.SATURN,
-            "Rahu": swe.MEAN_NODE,
+            "Sun": swe.SUN, "Moon": swe.MOON, "Mercury": swe.MERCURY,
+            "Venus": swe.VENUS, "Mars": swe.MARS, "Jupiter": swe.JUPITER,
+            "Saturn": swe.SATURN, "Rahu": swe.MEAN_NODE,
         }
         
-        # Explicitly enforce GEOCENTRIC + SIDEREAL calculation flags
         flags = swe.FLG_SIDEREAL | swe.FLG_SPEED
         
         for name, planet_id in bodies_map.items():
@@ -100,19 +133,14 @@ def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time):
                 "is_retrograde": is_retro
             }
             
-        # Calculate Ketu (Exactly 180 degrees opposite Rahu)
         rahu_lon = positions["Rahu"]["longitude"]
         positions["Ketu"] = {
             "longitude": (rahu_lon + 180.0) % 360,
             "speed": positions["Rahu"]["speed"],
             "is_retrograde": True
         }
-        
     else:
-        # Geocentric Fallback Engine (Lahiri Ayanamsha Approximation)
         d = (utc_dt - datetime.datetime(2000, 1, 1, 12, 0)).total_seconds() / 86400.0
-        
-        # Geocentric Mean Longitudes
         sun_lon = (280.460 + 0.9856474 * d) % 360
         moon_lon = (218.316 + 13.176396 * d) % 360
         mercury_lon = (252.251 + 4.092334 * d) % 360
@@ -123,7 +151,6 @@ def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time):
         rahu_lon = (125.044 - 0.0529539 * d) % 360
         ketu_lon = (rahu_lon + 180.0) % 360
 
-        # Approximate Lahiri Ayanamsha
         ayanamsha = 23.85 + (calc_date.year - 2000) * (50.29 / 3600.0)
 
         bodies = {
@@ -156,12 +183,10 @@ def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time):
                 "is_retrograde": is_retro
             }
 
-    # Derive Sign, Nakshatra, and Pada from Geocentric Sidereal Longitude
     for name, data in positions.items():
         sid_lon = data["longitude"]
         sign_idx = int(sid_lon // 30)
         
-        # 27 Nakshatras = 13.333° each; 4 Padas per Nakshatra = 3.333° each
         nak_exact = sid_lon / (360.0 / 27.0)
         nak_idx = int(nak_exact)
         rem_deg = (nak_exact - nak_idx) * (360.0 / 27.0)
@@ -176,9 +201,8 @@ def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time):
     return positions
 
 
-# --- ASPECTS & VEDHA EVALUATION ---
+# --- ASPECTS & VEDHA CALCULATIONS ---
 def calculate_aspects(positions):
-    """Calculates Western major aspects and Vedic Special Drishti."""
     aspects = []
     planets = list(positions.keys())
     
@@ -195,7 +219,6 @@ def calculate_aspects(positions):
             aspect_type = None
             weight = 0.0
             
-            # Major Western Angular Aspects
             if diff <= 6.0:
                 aspect_type = "Conjunction (0°)"
                 weight = 2.0 if p1 in ["Jupiter", "Venus", "Sun"] or p2 in ["Jupiter", "Venus", "Sun"] else -1.5
@@ -212,32 +235,27 @@ def calculate_aspects(positions):
                 aspect_type = "Sextile (60°)"
                 weight = 1.0
 
-            # Vedic Special Drishti Rules
             sign_diff = (positions[p2]["sign_idx"] - positions[p1]["sign_idx"]) % 12
-            if p1 == "Mars" and sign_diff in [3, 7]:  # 4th and 8th house aspect
+            if p1 == "Mars" and sign_diff in [3, 7]:
                 aspect_type = f"Mars Special Drishti ({sign_diff + 1}th House)"
                 weight = -1.8
-            elif p1 == "Jupiter" and sign_diff in [4, 8]:  # 5th and 9th house aspect
+            elif p1 == "Jupiter" and sign_diff in [4, 8]:
                 aspect_type = f"Jupiter Special Drishti ({sign_diff + 1}th House)"
                 weight = 2.5
-            elif p1 == "Saturn" and sign_diff in [2, 9]:  # 3rd and 10th house aspect
+            elif p1 == "Saturn" and sign_diff in [2, 9]:
                 aspect_type = f"Saturn Special Drishti ({sign_diff + 1}th House)"
                 weight = -2.2
 
             if aspect_type:
                 aspects.append({
-                    "P1": p1,
-                    "P2": p2,
-                    "Aspect": aspect_type,
-                    "Angular Diff": f"{diff:.1f}°",
-                    "Weight": weight
+                    "P1": p1, "P2": p2, "Aspect": aspect_type,
+                    "Angular Diff": f"{diff:.1f}°", "Weight": weight
                 })
                 
     return aspects
 
 
 def calculate_vedha(positions):
-    """Calculates Nakshatra Vedha (Planetary Obstructions/Afflictions)."""
     vedha_events = []
     malefics = ["Saturn", "Mars", "Rahu", "Ketu", "Sun"]
     
@@ -251,8 +269,7 @@ def calculate_vedha(positions):
                 impact = -2.0 if is_malefic_vedha else 0.5
                 
                 vedha_events.append({
-                    "Obstructing Planet": p2,
-                    "Target Planet": p1,
+                    "Obstructing Planet": p2, "Target Planet": p1,
                     "Target Nakshatra": NAKSHATRAS[nak1],
                     "Counter Nakshatra": NAKSHATRAS[target_vedha_nak],
                     "Nature": "Malefic Affliction" if is_malefic_vedha else "Benefic Mutual Vedha",
@@ -262,94 +279,68 @@ def calculate_vedha(positions):
     return vedha_events
 
 
-# --- INTERACTIVE ANGLE WHEEL EPHEMERIS GRAPH---
+# --- ENHANCED HIGH-AESTHETIC ANGLE WHEEL PLOT ---
 def render_realtime_ephemeris_chart(positions, aspects):
-    """Renders 360-degree Angle Wheel + Geocentric Ephemeris Map via Plotly."""
     fig = go.Figure()
 
-    # 1. Outer Angle Wheel Ticks (Every 10 Degrees)
+    # Outer Degree Ticks
     for deg in range(0, 360, 10):
         is_major = (deg % 30 == 0)
-        r_inner = 9.7 if is_major else 9.85
+        r_inner = 9.6 if is_major else 9.85
         r_outer = 10.0
-        line_color = "rgba(255, 215, 0, 0.8)" if is_major else "rgba(200, 200, 200, 0.4)"
-        line_width = 1.5 if is_major else 0.8
+        line_color = "rgba(255, 215, 0, 0.9)" if is_major else "rgba(148, 163, 184, 0.3)"
+        line_width = 1.8 if is_major else 0.8
 
         fig.add_trace(go.Scatterpolar(
-            r=[r_inner, r_outer],
-            theta=[deg, deg],
-            mode="lines",
-            line=dict(color=line_color, width=line_width),
-            showlegend=False,
-            hoverinfo="none"
+            r=[r_inner, r_outer], theta=[deg, deg], mode="lines",
+            line=dict(color=line_color, width=line_width), showlegend=False, hoverinfo="none"
         ))
 
-        # Degree Labels on Outer Ring
         fig.add_trace(go.Scatterpolar(
-            r=[10.4],
-            theta=[deg],
-            mode="text",
-            text=[f"{deg}°"],
-            textfont=dict(size=8, color="#94A3B8"),
-            showlegend=False,
-            hoverinfo="none"
+            r=[10.55], theta=[deg], mode="text", text=[f"{deg}°"],
+            textfont=dict(size=8, color="#94A3B8"), showlegend=False, hoverinfo="none"
         ))
 
-    # 2. Zodiac Sectors and Sign Labels
+    # Zodiac Sectors
     for i, sign in enumerate(ZODIAC_SIGNS):
         angle = i * 30
-
         fig.add_trace(go.Scatterpolar(
-            r=[0, 10.0],
-            theta=[angle, angle],
-            mode="lines",
-            line=dict(color="rgba(255, 215, 0, 0.3)", width=1, dash="dot"),
-            showlegend=False,
-            hoverinfo="none"
+            r=[0, 10.0], theta=[angle, angle], mode="lines",
+            line=dict(color="rgba(217, 119, 6, 0.3)", width=1, dash="dot"), showlegend=False, hoverinfo="none"
+        ))
+        fig.add_trace(go.Scatterpolar(
+            r=[11.45], theta=[angle + 15], mode="text", text=[f"<b>{sign.upper()}</b>"],
+            textfont=dict(size=10, color="#F59E0B", family="Sans-serif"), showlegend=False, hoverinfo="none"
         ))
 
-        fig.add_trace(go.Scatterpolar(
-            r=[11.2],
-            theta=[angle + 15],
-            mode="text",
-            text=[f"<b>{sign.upper()}</b>"],
-            textfont=dict(size=11, color="#FFD700"),
-            showlegend=False,
-            hoverinfo="none"
-        ))
-
-    # 3. Radial Aspect Connecting Lines
+    # Radial Aspect Lines
     aspect_colors = {
-        "Conjunction (0°)": "rgba(50, 205, 50, 0.5)",
-        "Opposition (180°)": "rgba(255, 69, 0, 0.5)",
-        "Trine (120°)": "rgba(30, 144, 255, 0.4)",
-        "Square (90°)": "rgba(255, 140, 0, 0.4)",
-        "Sextile (60°)": "rgba(186, 85, 211, 0.3)"
+        "Conjunction (0°)": "rgba(34, 197, 94, 0.6)",
+        "Opposition (180°)": "rgba(239, 68, 68, 0.6)",
+        "Trine (120°)": "rgba(59, 130, 246, 0.5)",
+        "Square (90°)": "rgba(249, 115, 22, 0.5)",
+        "Sextile (60°)": "rgba(168, 85, 247, 0.4)"
     }
 
     for asp in aspects:
         p1, p2 = asp["P1"], asp["P2"]
-        aspect_type = asp["Aspect"]
-        base_aspect = aspect_type.split(" Special")[0]
-        line_color = aspect_colors.get(base_aspect, "rgba(150, 150, 150, 0.2)")
+        base_aspect = asp["Aspect"].split(" Special")[0]
+        line_color = aspect_colors.get(base_aspect, "rgba(148, 163, 184, 0.25)")
 
         lon1 = positions[p1]["longitude"]
         lon2 = positions[p2]["longitude"]
 
         fig.add_trace(go.Scatterpolar(
-            r=[8.2, 8.2],
-            theta=[lon1, lon2],
-            mode="lines",
+            r=[8.2, 8.2], theta=[lon1, lon2], mode="lines",
             line=dict(color=line_color, width=1.5),
-            name=f"Aspect: {p1}-{p2} ({asp['Aspect']})",
-            hoverinfo="name"
+            name=f"{p1} - {p2} ({asp['Aspect']})", hoverinfo="name"
         ))
 
-    # 4. Planetary Positions
+    # Planets
     planet_colors = {
-        "Sun": "#FFD700", "Moon": "#C0C0C0", "Mercury": "#32CD32",
-        "Venus": "#FF69B4", "Mars": "#FF4500", "Jupiter": "#FFA500",
-        "Saturn": "#4682B4", "Rahu": "#8A2BE2", "Ketu": "#4B0082"
+        "Sun": "#FFD700", "Moon": "#E2E8F0", "Mercury": "#4ADE80",
+        "Venus": "#F472B6", "Mars": "#EF4444", "Jupiter": "#F59E0B",
+        "Saturn": "#38BDF8", "Rahu": "#A855F7", "Ketu": "#6366F1"
     }
 
     for name, data in positions.items():
@@ -357,163 +348,128 @@ def render_realtime_ephemeris_chart(positions, aspects):
         retro_str = " (R)" if data["is_retrograde"] else ""
         label = (
             f"<b>{name}{retro_str}</b><br>"
-            f"Geocentric Sidereal Longitude: {lon:.2f}°<br>"
+            f"Longitude: {lon:.2f}°<br>"
             f"Sign: {data['sign']}<br>"
             f"Nakshatra: {data['nakshatra']} (Pada {data['pada']})"
         )
         
         fig.add_trace(go.Scatterpolar(
-            r=[8.2],
-            theta=[lon],
-            mode="markers+text",
-            marker=dict(size=14, color=planet_colors.get(name, "#FFFFFF"), line=dict(color="#0F172A", width=1.5)),
-            text=[name],
-            textposition="top center",
-            name=f"{name} ({lon:.2f}°)",
-            hoverinfo="text",
-            hovertext=label
+            r=[8.2], theta=[lon], mode="markers+text",
+            marker=dict(size=13, color=planet_colors.get(name, "#FFFFFF"), line=dict(color="#0F172A", width=2)),
+            text=[name], textposition="top center", name=f"{name} ({lon:.2f}°)",
+            hoverinfo="text", hovertext=label
         ))
 
-    # 5. Polar Layout with Angle Wheel Ring
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=False, range=[0, 12]),
+            radialaxis=dict(visible=False, range=[0, 12.2]),
             angularaxis=dict(
-                tickmode="array",
-                tickvals=list(range(0, 360, 30)),
-                ticktext=ZODIAC_SIGNS,
-                direction="counterclockwise",
-                rotation=0,
-                showgrid=True,
-                gridcolor="rgba(100, 116, 139, 0.2)"
+                tickmode="array", tickvals=list(range(0, 360, 30)),
+                ticktext=ZODIAC_SIGNS, direction="counterclockwise",
+                rotation=0, showgrid=True, gridcolor="rgba(51, 65, 85, 0.4)"
             ),
             bgcolor="rgba(15, 23, 42, 0.95)"
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=40, r=40, t=40, b=40),
-        height=650,
-        showlegend=True,
-        legend=dict(orientation="h", y=-0.12, x=0.1)
+        margin=dict(l=30, r=30, t=30, b=30),
+        height=620, showlegend=True,
+        legend=dict(orientation="h", y=-0.1, x=0.05, font=dict(color="#94A3B8"))
     )
 
     return fig
 
 
-# --- DASHBOARD MAIN APPLICATION ---
-st.title("🪙 Vyapar Ratna Gold Astro Engine (GAS V4)")
-st.caption(
-    "📍 **Location:** Mumbai, India (18.9220° N, 72.8347° E) | "
-    "🌐 **Mode:** Geocentric Sidereal (Lahiri Ayanamsha) | "
-    "🕒 **Timezone:** IST (UTC+5:30)"
-)
+# --- SIDEBAR INTERFACE ---
+st.sidebar.title("🪐 Controls")
+st.sidebar.markdown("---")
 
-# Sidebar Configuration Controls
-st.sidebar.header("🗓️ Mumbai Time Controls")
+def set_current_time():
+    now = datetime.datetime.now()
+    st.session_state["calc_date"] = now.date()
+    st.session_state["calc_time"] = now.time()
 
-# Session State Initialization for Date and Time
-now = datetime.datetime.now()
 if "calc_date" not in st.session_state:
-    st.session_state.calc_date = now.date()
-if "calc_time" not in st.session_state:
-    st.session_state.calc_time = now.time()
+    set_current_time()
 
-# Button to reset state to the current date and time
-if st.sidebar.button("📅 Go to Current Date & Time", use_container_width=True):
-    current_now = datetime.datetime.now()
-    st.session_state.calc_date = current_now.date()
-    st.session_state.calc_time = current_now.time()
+st.sidebar.button("📅 Go to Current Date & Time", on_click=set_current_time)
 
 calc_date = st.sidebar.date_input("Evaluation Date", key="calc_date")
 calc_time = st.sidebar.time_input("Evaluation Time (IST)", key="calc_time")
 
+st.sidebar.markdown("---")
 if HAS_SWISSEPH:
-    st.sidebar.success("Engine: Swiss Ephemeris (Geocentric Sidereal)")
+    st.sidebar.success("Engine: Swiss Ephemeris (Sidereal)")
 else:
-    st.sidebar.warning("Engine: Pure Python Geocentric Sidereal Fallback")
+    st.sidebar.warning("Engine: Fallback Pure-Python Sidereal")
 
-# Compute Ephemeris, Aspects & Vedha
+
+# --- DASHBOARD CONTENT ---
+st.title("🪙 Vyapar Ratna Gold Astro Engine")
+st.caption("📍 Mumbai, IN (18.9220° N, 72.8347° E) | Mode: Geocentric Sidereal (Lahiri) | Timezone: IST (UTC+5:30)")
+
+# Ephemeris Computations
 positions = calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time)
 aspects = calculate_aspects(positions)
 vedhas = calculate_vedha(positions)
 
-# Combined Effects Computation
 base_score = sum([
     PLANET_WEIGHTS.get(p, 0.0) * (-1.2 if data["is_retrograde"] and p in ["Saturn", "Rahu", "Ketu"] else 1.0)
     for p, data in positions.items()
 ])
 aspect_score = sum([a["Weight"] for a in aspects])
 vedha_score = sum([v["Score Impact"] for v in vedhas])
-
 total_score = base_score + aspect_score + vedha_score
 
-# Market Bias & Execution Directives
+# Market Bias
 if total_score >= 7.0:
-    regime = "STRONG BULLISH REGIME"
-    color = "green"
-    action = "LONG TRADES PERMITTED — Confirm with Technical Breakout"
+    regime, color, action = "STRONG BULLISH REGIME", "#22C55E", "LONG TRADES PERMITTED — Confirm with Technical Breakout"
 elif 3.0 <= total_score < 7.0:
-    regime = "MODERATE BULLISH BIAS"
-    color = "lightgreen"
-    action = "CAUTIOUS LONG TRADES — Trailing Stop Loss Mandatory"
+    regime, color, action = "MODERATE BULLISH BIAS", "#86EFAC", "CAUTIOUS LONG TRADES — Trailing Stop Loss Mandatory"
 elif -3.0 < total_score < 3.0:
-    regime = "NEUTRAL / CONSOLIDATION ZONE"
-    color = "gray"
-    action = "NO ASTRO EDGE — Range Bound Strategies Recommended"
+    regime, color, action = "NEUTRAL / CONSOLIDATION ZONE", "#94A3B8", "NO ASTRO EDGE — Range Bound Strategies Recommended"
 elif -7.0 < total_score <= -3.0:
-    regime = "MODERATE BEARISH BIAS"
-    color = "orange"
-    action = "CAUTIOUS SHORT TRADES — Tight Trailing Stop Loss"
+    regime, color, action = "MODERATE BEARISH BIAS", "#F97316", "CAUTIOUS SHORT TRADES — Tight Trailing Stop Loss"
 else:
-    regime = "STRONG BEARISH REGIME"
-    color = "red"
-    action = "SHORT TRADES PERMITTED — Confirm with Technical Breakdown"
+    regime, color, action = "STRONG BEARISH REGIME", "#EF4444", "SHORT TRADES PERMITTED — Confirm with Technical Breakdown"
 
 # Top Metrics Row
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Composite Astro Score", f"{total_score:+.2f}")
-m2.metric("Base Placement Score", f"{base_score:+.2f}")
+m2.metric("Base Placement", f"{base_score:+.2f}")
 m3.metric("Aspect Net Score", f"{aspect_score:+.2f}")
 m4.metric("Vedha Net Impact", f"{vedha_score:+.2f}")
 
-st.markdown(f"### Market Bias: :{color}[{regime}]")
+st.markdown(f"<h3 style='color: {color}; margin-top: 15px;'>Market Bias: {regime}</h3>", unsafe_allow_html=True)
 st.info(f"**Execution Directive:** {action}")
 
 st.divider()
 
-# Graphical Realtime Angle Wheel Chart
-st.subheader("🪐 Geocentric Sidereal Angle Wheel & Ephemeris (Mumbai)")
+# Interactive Angle Wheel Visual
+st.subheader("🪐 Geocentric Sidereal Angle Wheel & Ephemeris Map")
 fig = render_realtime_ephemeris_chart(positions, aspects)
 st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# Data Tables
-tab1, tab2, tab3 = st.columns(3)
+# Tabbed Data Display
+tab1, tab2, tab3 = st.tabs(["📌 Planetary Positions", "⚡ Active Aspects & Drishti", "🛑 Active Vedha"])
 
 with tab1:
-    st.subheader("📌 Positions, Nakshatra & Pada")
-    pos_df = []
-    for p, val in positions.items():
-        pos_df.append({
-            "Planet": p,
-            "Sign": val["sign"],
-            "Nakshatra": val["nakshatra"],
-            "Pada": f"Pada {val['pada']}",
-            "Motion": "RETROGRADE" if val["is_retrograde"] else "DIRECT",
-            "Sidereal Deg": f"{val['longitude']:.2f}°"
-        })
+    pos_df = [{
+        "Planet": p, "Sign": val["sign"], "Nakshatra": val["nakshatra"],
+        "Pada": f"Pada {val['pada']}", "Motion": "RETROGRADE" if val["is_retrograde"] else "DIRECT",
+        "Longitude": f"{val['longitude']:.2f}°"
+    } for p, val in positions.items()]
     st.dataframe(pd.DataFrame(pos_df), hide_index=True, use_container_width=True)
 
 with tab2:
-    st.subheader("⚡ Active Aspects & Drishti")
     if aspects:
         st.dataframe(pd.DataFrame(aspects)[["P1", "P2", "Aspect", "Weight"]], hide_index=True, use_container_width=True)
     else:
         st.write("No major planetary aspects active for this timestamp.")
 
 with tab3:
-    st.subheader("🛑 Active Vedha (Obstructions)")
     if vedhas:
         st.dataframe(pd.DataFrame(vedhas)[["Obstructing Planet", "Target Planet", "Target Nakshatra", "Score Impact"]], hide_index=True, use_container_width=True)
     else:
