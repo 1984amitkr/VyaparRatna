@@ -213,37 +213,91 @@ def analyze_gold_market(planet_data):
     }
 
 # -------------------------------------------------------------------
-# 5. RENDER VISUAL SARVATOBHADRA CHAKRA (9x9 GRID)
+# 5. RENDER VISUAL SARVATOBHADRA CHAKRA WITH SVG RAYS
 # -------------------------------------------------------------------
-def render_sbc_grid_visual(planet_data):
-    # Map planets to their current Nakshatras
+def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
+    CELL_SIZE = 100
+    GRID_DIM = 900
+    
     planet_positions = {}
     vedha_targets = set()
+    svg_lines = []
 
+    # Map all planetary positions onto the grid
     for p in planet_data:
         nak = p["Nakshatra"]
         if nak not in planet_positions:
             planet_positions[nak] = []
         planet_positions[nak].append(p["Planet"])
-        
-        # Add Vedha target Nakshatras
-        for target in p["All Targets"]:
-            vedha_targets.add(target)
 
-    # Generate 9x9 HTML Table
-    html = """
-    <style>
-        .sbc-table { width: 100%; max-width: 750px; margin: 0 auto; border-collapse: collapse; text-align: center; font-family: sans-serif; }
-        .sbc-cell { border: 1px solid #444; height: 65px; width: 11%; vertical-align: top; padding: 4px; font-size: 11px; position: relative; }
-        .sbc-outer { background-color: #1e2530; color: #fff; font-weight: bold; }
-        .sbc-inner { background-color: #0e1117; color: #666; }
-        .sbc-planet { display: inline-block; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; font-weight: bold; }
-        .p-malefic { background-color: #ff4b4b; color: white; }
-        .p-benefic { background-color: #00c853; color: white; }
-        .vedha-target { border: 2px solid #ffaa00 !important; background-color: #3d2b00 !important; }
-        .corner-cell { background-color: #111; }
-    </style>
-    <table class="sbc-table">
+    # Build SVG Rays ONLY for planets selected in the filter
+    for p in planet_data:
+        p_name = p["Planet"]
+        
+        if p_name not in selected_planets:
+            continue
+
+        src_nak = p["Nakshatra"]
+        if src_nak not in SBC_GRID_POSITIONS:
+            continue
+            
+        src_r, src_c = SBC_GRID_POSITIONS[src_nak]
+        x1 = src_c * CELL_SIZE + (CELL_SIZE // 2)
+        y1 = src_r * CELL_SIZE + (CELL_SIZE // 2)
+
+        stroke_color = "#ff4b4b" if p_name in MALEFICS else "#00c853"
+
+        targets = [
+            ("Front Target", p.get("Front Target")),
+            ("Left Target", p.get("Left Target")),
+            ("Right Target", p.get("Right Target"))
+        ]
+
+        for vedha_type, target_nak in targets:
+            if target_nak and target_nak in SBC_GRID_POSITIONS:
+                vedha_targets.add(target_nak)
+                tgt_r, tgt_c = SBC_GRID_POSITIONS[target_nak]
+                x2 = tgt_c * CELL_SIZE + (CELL_SIZE // 2)
+                y2 = tgt_r * CELL_SIZE + (CELL_SIZE // 2)
+
+                is_primary = (
+                    ("Front" in p["Primary Vedha"] and vedha_type == "Front Target") or
+                    ("Left" in p["Primary Vedha"] and vedha_type == "Left Target") or
+                    ("Right" in p["Primary Vedha"] and vedha_type == "Right Target")
+                )
+
+                stroke_width = "4" if is_primary else "1.5"
+                opacity = "0.95" if is_primary else "0.40"
+                dash_array = "none" if is_primary else "6,4"
+
+                svg_lines.append(
+                    f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                    f'stroke="{stroke_color}" stroke-width="{stroke_width}" '
+                    f'stroke-linecap="round" stroke-dasharray="{dash_array}" '
+                    f'opacity="{opacity}" />'
+                )
+
+    # HTML Overlay Assembly
+    html = f"""
+    <div style="position: relative; width: 100%; max-width: 750px; margin: 0 auto; aspect-ratio: 1 / 1;">
+        <!-- SVG Overlay Layer -->
+        <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
+            {''.join(svg_lines)}
+        </svg>
+
+        <!-- HTML Grid Layer -->
+        <style>
+            .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
+            .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; position: relative; box-sizing: border-box; }}
+            .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
+            .sbc-inner-svg {{ background-color: #0d0f12; color: #444; }}
+            .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
+            .bg-malefic {{ background-color: #ff4b4b; color: white; }}
+            .bg-benefic {{ background-color: #00c853; color: white; }}
+            .is-target {{ border: 2px solid #ffaa00 !important; background-color: #2a2000 !important; }}
+        </style>
+        
+        <table class="sbc-table-svg">
     """
 
     for r in range(9):
@@ -252,29 +306,29 @@ def render_sbc_grid_visual(planet_data):
             nak_name = GRID_TO_NAKSHATRA.get((r, c), None)
             
             if nak_name:
-                is_target = nak_name in vedha_targets
-                cell_class = "sbc-cell sbc-outer" + (" vedha-target" if is_target else "")
-                planets_here = planet_positions.get(nak_name, [])
+                is_tgt = nak_name in vedha_targets
+                cell_cls = "sbc-cell-svg sbc-outer-svg" + (" is-target" if is_tgt else "")
+                planets = planet_positions.get(nak_name, [])
                 
-                planet_badge = ""
-                for p in planets_here:
-                    badge_cls = "p-malefic" if p in MALEFICS else "p-benefic"
-                    planet_badge += f"<span class='sbc-planet {badge_cls}'>{p}</span>"
+                badges = ""
+                for p in planets:
+                    b_cls = "bg-malefic" if p in MALEFICS else "bg-benefic"
+                    badges += f"<span class='sbc-badge {b_cls}'>{p}</span>"
 
                 html += f"""
-                <td class='{cell_class}'>
-                    <div>{nak_name}</div>
-                    <div style='margin-top:4px;'>{planet_badge}</div>
+                <td class='{cell_cls}'>
+                    <div style='font-size: 10px; margin-top: 2px;'>{nak_name}</div>
+                    <div style='margin-top:2px;'>{badges}</div>
                 </td>
                 """
             else:
-                if (r, c) in [(0,0), (0,8), (8,0), (8,8)]:
-                    html += "<td class='sbc-cell corner-cell'></td>"
-                else:
-                    html += "<td class='sbc-cell sbc-inner'></td>"
+                html += "<td class='sbc-cell-svg sbc-inner-svg'></td>"
         html += "</tr>"
 
-    html += "</table>"
+    html += """
+        </table>
+    </div>
+    """
     return html
 
 # -------------------------------------------------------------------
@@ -282,8 +336,13 @@ def render_sbc_grid_visual(planet_data):
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
+all_planets = list(PLANET_IDS.keys())
+
 if "mode" not in st.session_state:
     st.session_state.mode = "LIVE"
+
+if "selected_planets" not in st.session_state:
+    st.session_state.selected_planets = ["Sun", "Jupiter", "Saturn", "Mars", "Rahu", "Ketu"]
 
 st.title("🏆 VyaparRatna SBC Gold Trading Engine")
 st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
@@ -383,12 +442,41 @@ with col_b:
     else:
         st.write("No significant malefic Vedha afflicting Gold significators.")
 
-# Visual SBC Grid (Replaces tabular dataframe)
+# Visual SBC Grid with Filter Presets
 st.divider()
 st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
 st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target")
 
-sbc_html = render_sbc_grid_visual(data)
+st.write("**Quick Presets:**")
+btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
+
+if btn_c1.button("Show All Planets"):
+    st.session_state.selected_planets = all_planets.copy()
+    st.rerun()
+
+if btn_c2.button("Malefics Only"):
+    st.session_state.selected_planets = MALEFICS.copy()
+    st.rerun()
+
+if btn_c3.button("Benefics Only"):
+    st.session_state.selected_planets = BENEFICS.copy()
+    st.rerun()
+
+if btn_c4.button("Gold Key Movers"):
+    st.session_state.selected_planets = ["Sun", "Jupiter", "Saturn", "Mars"]
+    st.rerun()
+
+selected_planets = st.multiselect(
+    "Filter SVG Vedha Rays by Planet:",
+    options=all_planets,
+    default=st.session_state.selected_planets,
+    key="planet_multiselect_filter",
+    help="Select or unselect planets to isolate their specific Vedha aspect paths on the grid."
+)
+
+st.session_state.selected_planets = selected_planets
+
+sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
 st.markdown(sbc_html, unsafe_allow_html=True)
 
 # Detailed Cards
