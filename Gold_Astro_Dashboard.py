@@ -47,25 +47,36 @@ SBC_GRID_POSITIONS = {
 
 GRID_TO_NAKSHATRA = {v: k for k, v in SBC_GRID_POSITIONS.items()}
 
-# VARNADIPANCHAK MAPPING (INNER 7x7 GRID LAYOUT)
+# -------------------------------------------------------------------
+# CLASSICAL SARVATOBHADRA CHAKRA INNER GRID (81-CELL SYSTEM)
+# Corner Swaras, Inner Swaras, Varna (Consonants), Rashis, Tithi/Vaara
+# -------------------------------------------------------------------
 VARNADIPANCHAK_GRID = {
-    # Layer 1 (Outer Inner Border - Svara/Vowels & Tithi)
-    (1, 1): "अ / Nanda",   (1, 2): "आ / Bhadra",  (1, 3): "इ / Jaya",    (1, 4): "ई / Rikta",   (1, 5): "उ / Purna",   (1, 6): "ऊ / Nanda",   (1, 7): "ऋ / Bhadra",
-    (2, 1): "अः / Purna",  (3, 1): "अं / Rikta",  (4, 1): "औ / Jaya",    (5, 1): "ओ / Bhadra",  (6, 1): "ऐ / Nanda",   (7, 1): "ए / Purna",
-    (2, 7): "ॠ / Jaya",    (3, 7): "ऌ / Rikta",   (4, 7): "ॡ / Purna",   (5, 7): "ए / Nanda",   (6, 7): "ऐ / Bhadra",  (7, 7): "ओ / Jaya",
-    (7, 2): "अः / Rikta",  (7, 3): "अं / Purna",  (7, 4): "औ / Nanda",   (7, 5): "ओ / Bhadra",  (7, 6): "ऐ / Jaya",
+    # 4 Corner Vowels (Outer Grid Corners)
+    (0, 0): "अ",
+    (0, 8): "आ",
+    (8, 8): "इ",
+    (8, 0): "ई",
 
-    # Layer 2 (Rashi & Varna Outer)
-    (2, 2): "Mesha (Aries)",    (2, 3): "Vrishaba (Taurus)", (2, 4): "Mithuna (Gemini)", (2, 5): "Karka (Cancer)",   (2, 6): "Simha (Leo)",
-    (3, 2): "Meena (Pisces)",                                                                                         (3, 6): "Kanya (Virgo)",
-    (4, 2): "Kumbha (Aqua)",                                                                                          (4, 6): "Tula (Libra)",
-    (5, 2): "Makara (Capri)",                                                                                         (5, 6): "Vrishchika (Scorpio)",
-    (6, 2): "Dhanu (Sagit)",    (6, 3): "क, ख, ग, घ",        (6, 4): "च, छ, ज, झ",       (6, 5): "ट, ठ, ड, ढ",    (6, 6): "त, थ, द, ध",
+    # Ring 1: Swara / Vowel Band
+    (1, 1): "उ",  (1, 2): "ऊ",  (1, 3): "ऋ",  (1, 4): "ॠ",  (1, 5): "ऌ",  (1, 6): "ॡ",  (1, 7): "ए",
+    (2, 7): "ऐ",  (3, 7): "ओ",  (4, 7): "औ",  (5, 7): "अं",  (6, 7): "अः",
+    (7, 1): "अः", (7, 2): "अं", (7, 3): "औ",  (7, 4): "ओ",  (7, 5): "ऐ",  (7, 6): "ए",
+    (2, 1): "ॡ",  (3, 1): "ऌ",  (4, 1): "ॠ",  (5, 1): "ऋ",  (6, 1): "ऊ",
 
-    # Layer 3 (Inner Varna & Svara Core)
-    (3, 3): "प, फ, ब, भ", (3, 4): "म, य, र, ल", (3, 5): "व, श, ष, स",
-    (4, 3): "ह, क्ष",      (4, 4): "☸ CENTER",   (4, 5): "अ, आ, इ, ई",
-    (5, 3): "उ, ऊ, ऋ, ॠ", (5, 4): "ऌ, ॡ, ए, ऐ", (5, 5): "ओ, औ, अं, अः"
+    # Ring 2: Varna / Consonant (Akshara) Groups
+    (2, 2): "क ख ग घ",     (2, 3): "ङ च छ ज",     (2, 4): "झ ञ ट ठ",     (2, 5): "ड ढ ण त",     (2, 6): "थ द ध न",
+    (3, 6): "प फ ब भ",     (4, 6): "म य र ल",     (5, 6): "व श ष स",     (6, 6): "ह क्ष",
+    (6, 2): "त थ द ध",     (6, 3): "ण ड ढ ट",     (6, 4): "ठ झ ञ च",     (6, 5): "छ ज ग ख",
+    (3, 2): "न प फ ब",     (4, 2): "भ म य र",     (5, 2): "ल व श ष",
+
+    # Ring 3: 12 Rashis (Zodiac Signs)
+    (3, 3): "Vrishabha (Taurus)",   (3, 4): "Mithuna (Gemini)",   (3, 5): "Karka (Cancer)",
+    (4, 5): "Simha (Leo)",          (5, 5): "Kanya (Virgo)",      (5, 4): "Tula (Libra)",
+    (5, 3): "Vrishchika (Scorpio)", (4, 3): "Dhanu (Sagittarius)",(3, 3): "Mesha (Aries)",
+
+    # Inner Core: Tithi Groups & Weekdays / Center
+    (4, 4): "☸ CENTER",
 }
 
 # -------------------------------------------------------------------
