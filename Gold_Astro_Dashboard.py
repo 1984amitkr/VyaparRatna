@@ -7,8 +7,6 @@ import swisseph as swe
 # 1. CONSTANTS & SBC GRID CONFIGURATION
 # -------------------------------------------------------------------
 MUMBAI_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
-MUMBAI_LAT = 19.0760
-MUMBAI_LON = 72.8777
 
 NAKSHATRAS_28 = [
     "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya", "Ashlesha",
@@ -102,11 +100,9 @@ def calculate_vedha(planet: str, nakshatra: str, speed: float):
     }
 
 def get_ephemeris_data(dt: datetime.datetime):
-    # Convert local IST time to UTC Julian Day for Swisseph
     utc_dt = dt.astimezone(datetime.timezone.utc)
     swe.set_sid_mode(swe.SIDM_LAHIRI)
     
-    # Julian day calculation taking UTC time
     julian_day = swe.julday(
         utc_dt.year, utc_dt.month, utc_dt.day, 
         utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
@@ -151,7 +147,6 @@ def analyze_gold_market(planet_data):
     
     sun = p_map["Sun"]
     jupiter = p_map["Jupiter"]
-    mars = p_map["Mars"]
 
     bullish_factors = []
     bearish_factors = []
@@ -230,13 +225,13 @@ else:
 
 # Button to reset to Live Mode
 if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
+    st.session_state.mode = "HISTORICAL"  # force toggle reset
     st.session_state.mode = "LIVE"
     st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Date & Time Input")
 
-# Compute current IST time
 now_mumbai = datetime.datetime.now(MUMBAI_TZ)
 
 if st.session_state.mode == "LIVE":
@@ -249,11 +244,10 @@ else:
 selected_date = st.sidebar.date_input("Select Date", active_date)
 selected_time = st.sidebar.time_input("Select Time (IST)", active_time)
 
-# Detect if user picked a past/different date/time manually
 combined_input = datetime.datetime.combine(selected_date, selected_time, tzinfo=MUMBAI_TZ)
 time_diff = abs((combined_input - now_mumbai).total_seconds())
 
-if time_diff > 60:  # If time selection is modified beyond 1 minute from live
+if time_diff > 60:
     st.session_state.mode = "HISTORICAL"
     st.session_state.hist_date = selected_date
     st.session_state.hist_time = selected_time
@@ -261,81 +255,89 @@ if time_diff > 60:  # If time selection is modified beyond 1 minute from live
 effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
 
 # -------------------------------------------------------------------
-# 6. DASHBOARD FRAGMENT (AUTO-REFRESH LOGIC)
+# 6. HARD BROWSER AUTO-REFRESH (JAVASCRIPT METATAG INJECTION)
 # -------------------------------------------------------------------
-# Use run_every="300s" ONLY when in LIVE mode; None when HISTORICAL
-refresh_interval = "300s" if st.session_state.mode == "LIVE" else None
-
-@st.fragment(run_every=refresh_interval)
-def render_dashboard(dt: datetime.datetime, mode: str):
-    data = get_ephemeris_data(dt)
-    gold = analyze_gold_market(data)
-
-    st.info(
-        f"**Active Calculation Timestamp:** `{dt.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
-        f"| **Location:** Mumbai, India "
-        f"| **Refresh State:** {'🟢 Auto-Refreshing (5m)' if mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
+if st.session_state.mode == "LIVE":
+    # Forces the browser to hard-reload the page every 300 seconds (5 minutes)
+    st.components.v1.html(
+        """
+        <script>
+            setTimeout(function(){
+                window.parent.location.reload();
+            }, 300000);
+        </script>
+        """,
+        height=0
     )
 
-    # Metrics
-    st.divider()
-    st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
-    g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
+# -------------------------------------------------------------------
+# 7. DASHBOARD RENDER
+# -------------------------------------------------------------------
+data = get_ephemeris_data(effective_datetime)
+gold = analyze_gold_market(data)
 
-    with g_col1:
-        st.metric("Gold Market Signal", gold["Signal"])
-    with g_col2:
-        st.metric("Market Bias", gold["Bias"])
-    with g_col3:
-        st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
+st.info(
+    f"**Active Calculation Timestamp:** `{effective_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
+    f"| **Location:** Mumbai, India "
+    f"| **Refresh State:** {'🟢 Browser Auto-Refresh Active (300s)' if st.session_state.mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
+)
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.success("🟢 **Bullish Factors**")
-        if gold["Bullish Factors"]:
-            for factor in gold["Bullish Factors"]:
-                st.write(f"- {factor}")
-        else:
-            st.write("No strong bullish SBC factors present.")
+# Metrics
+st.divider()
+st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
+g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
 
-    with col_b:
-        st.error("🔴 **Bearish / Risk Factors**")
-        if gold["Bearish Factors"]:
-            for factor in gold["Bearish Factors"]:
-                st.write(f"- {factor}")
-        else:
-            st.write("No significant malefic Vedha afflicting Gold significators.")
+with g_col1:
+    st.metric("Gold Market Signal", gold["Signal"])
+with g_col2:
+    st.metric("Market Bias", gold["Bias"])
+with g_col3:
+    st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
 
-    # Planetary Vedha Table
-    st.divider()
-    st.subheader("🪐 Planetary Positions & Vedha Paths")
-    st.dataframe(
-        data,
-        column_config={
-            "Planet": "Planet",
-            "Longitude_str": "Sidereal Degree",
-            "Nakshatra": "Host Nakshatra",
-            "Motion": st.column_config.TextColumn("Motion State", help="Vakra, Atichara, Manda, or Sama"),
-            "Primary Vedha": st.column_config.TextColumn("Active Primary Vedha", help="Shifted by planetary speed/motion"),
-        },
-        use_container_width=True
-    )
+col_a, col_b = st.columns(2)
+with col_a:
+    st.success("🟢 **Bullish Factors**")
+    if gold["Bullish Factors"]:
+        for factor in gold["Bullish Factors"]:
+            st.write(f"- {factor}")
+    else:
+        st.write("No strong bullish SBC factors present.")
 
-    # Detailed Cards
-    st.divider()
-    st.subheader("🔍 Planetary Vedha Details")
-    cols = st.columns(3)
-    for idx, p in enumerate(data):
-        with cols[idx % 3]:
-            with st.container(border=True):
-                st.markdown(f"### {p['Planet']}")
-                st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
-                st.write(f"**Motion:** `{p['Motion']}`")
-                st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
-                st.markdown("---")
-                st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
-                st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
-                st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
+with col_b:
+    st.error("🔴 **Bearish / Risk Factors**")
+    if gold["Bearish Factors"]:
+        for factor in gold["Bearish Factors"]:
+            st.write(f"- {factor}")
+    else:
+        st.write("No significant malefic Vedha afflicting Gold significators.")
 
-# Render the dashboard with current configuration
-render_dashboard(effective_datetime, st.session_state.mode)
+# Planetary Vedha Table
+st.divider()
+st.subheader("🪐 Planetary Positions & Vedha Paths")
+st.dataframe(
+    data,
+    column_config={
+        "Planet": "Planet",
+        "Longitude_str": "Sidereal Degree",
+        "Nakshatra": "Host Nakshatra",
+        "Motion": st.column_config.TextColumn("Motion State", help="Vakra, Atichara, Manda, or Sama"),
+        "Primary Vedha": st.column_config.TextColumn("Active Primary Vedha", help="Shifted by planetary speed/motion"),
+    },
+    use_container_width=True
+)
+
+# Detailed Cards
+st.divider()
+st.subheader("🔍 Planetary Vedha Details")
+cols = st.columns(3)
+for idx, p in enumerate(data):
+    with cols[idx % 3]:
+        with st.container(border=True):
+            st.markdown(f"### {p['Planet']}")
+            st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
+            st.write(f"**Motion:** `{p['Motion']}`")
+            st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
+            st.markdown("---")
+            st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
+            st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
+            st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
