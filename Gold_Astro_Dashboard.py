@@ -1,293 +1,339 @@
+import io
+import math
 import streamlit as st
-from dataclasses import dataclass
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+
+# Set Streamlit Page Configuration
+st.set_page_config(page_title="Sarvatobhadra Chakra Application", layout="wide")
 
 # ==========================================
-# 1. STREAMLIT PAGE CONFIGURATION
-# (Must be the very first Streamlit command)
+# CONSTANTS & ASTROLOGICAL DATA MAPPING
 # ==========================================
-st.set_page_config(
-    page_title="SBC Gold Trading Dashboard",
-    page_icon="🪙",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+NAKSHATRAS = [
+    "Krittika", "Rohini", "Mrigasira", "Ardra", "Punarvasu", "Pushya", "Ashlesha",
+    "Magha", "P. Phalguni", "U. Phalguni", "Hasta", "Chitra", "Swati", "Visakha",
+    "Anuradha", "Jyeshta", "Moola", "P. Shada", "U. Shada", "Abhijit", "Sravana",
+    "Dhanishta", "Satabisha", "P. Bhadrapada", "U. Bhadrapada", "Revati", "Aswini", "Bharani"
+]
 
-# ==========================================
-# 2. CORE SBC ASTROLOGICAL ENGINE DATA STRUCTURES
-# ==========================================
+RASIS = [
+    "Mesha", "Vrisabha", "Mithuna", "Karka", "Simha", "Kanya",
+    "Tula", "Vriscika", "Dhanur", "Makara", "Kumbha", "Mina"
+]
 
-class MotionType(Enum):
-    NORMAL = "Front"
-    FAST = "Left"
-    RETROGRADE = "Right"
+TITHI_GROUPS = ["Nanda (1,6,11)", "Bhadra (2,7,12)", "Jaya (3,8,13)", "Rikta (4,9,14)", "Poornima (5,10,15)"]
+WEEKDAYS = ["Sun/Tue", "Mon/Wed", "Thu", "Fri", "Sat"]
 
-class Nature(Enum):
-    BENEFIC = "Benefic"
-    MALEFIC = "Malefic"
+VOWELS = ["A", "AA", "E", "EE", "U", "OO", "RE", "REE", "LRI", "LREE", "AE", "AEI", "O", "OU", "AM", "AHA"]
 
-STANDARD_SPEEDS_ARCMIN = {
-    "Surya (Sun)": 59.13,
-    "Chandra (Moon)": 790.50,
-    "Mangala (Mars)": 31.43,
-    "Budha (Mercury)": 59.13,
-    "Guru (Jupiter)": 4.98,
-    "Sukra (Venus)": 59.13,
-    "Sani (Saturn)": 2.00,
-    "Rahu": -3.18,
-    "Ketu": -3.18,
+MALEFICS = ["Surya (Sun)", "Mangala (Mars)", "Sani (Saturn)", "Rahu", "Ketu"]
+BENEFICS = ["Chandra (Moon)", "Budha (Mercury)", "Guru (Jupiter)", "Sukra (Venus)"]
+
+# Outer Border Sequence of 28 Nakshatras for 9x9 SBC Matrix
+OUTER_NAKSHATRA_POSITIONS = [
+    # Top Row (East: Left to Right)
+    (0, 1, "Krittika"), (0, 2, "Rohini"), (0, 3, "Mrigasira"), (0, 4, "Ardra"),
+    (0, 5, "Punarvasu"), (0, 6, "Pushya"), (0, 7, "Ashlesha"),
+    # Right Column (South: Top to Bottom)
+    (1, 8, "Magha"), (2, 8, "P. Phalguni"), (3, 8, "U. Phalguni"), (4, 8, "Hasta"),
+    (5, 8, "Chitra"), (6, 8, "Swati"), (7, 8, "Visakha"),
+    # Bottom Row (West: Right to Left)
+    (8, 7, "Anuradha"), (8, 6, "Jyeshta"), (8, 5, "Moola"), (8, 4, "P. Shada"),
+    (8, 3, "U. Shada"), (8, 2, "Abhijit"), (8, 1, "Sravana"),
+    # Left Column (North: Bottom to Top)
+    (7, 0, "Dhanishta"), (6, 0, "Satabisha"), (5, 0, "P. Bhadrapada"), (4, 0, "U. Bhadrapada"),
+    (3, 0, "Revati"), (2, 0, "Aswini"), (1, 0, "Bharani")
+]
+
+# Inner Grid Content Definition (Coordinates for Rasis, Tithis, Weekdays, Vowels)
+INNER_GRID_LAYOUT = {
+    (1, 1): "Vrisabha", (1, 2): "A", (1, 3): "Va", (1, 4): "Ka", (1, 5): "Ha", (1, 6): "Da", (1, 7): "Mithuna",
+    (2, 1): "AA", (2, 2): "Nanda\n1,6,11", (2, 3): "Sun/Tue", (2, 4): "Ma", (2, 5): "Ta", (2, 6): "Bhadra\n2,7,12", (2, 7): "E",
+    (3, 1): "LRI", (3, 2): "Mon/Wed", (3, 3): "Karka", (3, 4): "Pa", (3, 5): "Simha", (3, 6): "Thu", (3, 7): "EE",
+    (4, 1): "La", (4, 2): "Ra", (4, 3): "Ta", (4, 4): "Poornima\nSat", (4, 5): "Na", (4, 6): "Ya", (4, 7): "Bha",
+    (5, 1): "LREE", (5, 2): "Fri", (5, 3): "Mina", (5, 4): "Ja", (5, 5): "Kanya", (5, 6): "Fri", (5, 7): "OO",
+    (6, 1): "AEI", (6, 2): "Rikta\n4,9,14", (6, 3): "Thu", (6, 4): "Kha", (6, 5): "Ga", (6, 6): "Jaya\n3,8,13", (6, 7): "OO (Big)",
+    (7, 1): "Kumbha", (7, 2): "O", (7, 3): "Sa", (7, 4): "Da", (7, 5): "Cha", (7, 6): "OU", (7, 7): "Makara"
 }
 
-@dataclass
-class Graha:
-    name: str
-    longitude: float
-    daily_speed_arcmin: float
-    is_retrograde: bool = False
-    nature: Nature = Nature.MALEFIC
+# ==========================================
+# HELPER FUNCTIONS & CALCULATION LOGIC
+# ==========================================
 
-    def determine_motion(self) -> MotionType:
-        if self.is_retrograde or self.name in ["Rahu", "Ketu"]:
-            return MotionType.RETROGRADE
-        avg_speed = STANDARD_SPEEDS_ARCMIN.get(self.name, 60.0)
-        if self.daily_speed_arcmin > avg_speed * 1.2:
-            return MotionType.FAST
-        return MotionType.NORMAL
+def calculate_sapta_nadi(nakshatra):
+    """Maps a Nakshatra to its Sapta Nadi, Nadi Lord, and Nadi Quality."""
+    nadi_mapping = {
+        "Prachand Pawan": (["Krittika", "Visakha", "Anuradha", "Bharani"], "Sani", "Dangerous, high travel, fast changes"),
+        "Dehan": (["Rohini", "Swati", "Jyeshta", "Aswini"], "Surya", "Mental tension, quarrelsome, anger"),
+        "Sobhya": (["Mrigasira", "Chitra", "Moola", "Revati"], "Mangala", "Happy results, prosperity, unexpected gains"),
+        "Neer": (["Ardra", "Hasta", "P. Shada", "U. Bhadrapada"], "Guru", "Uncertainty, hard work required"),
+        "Jal": (["Punarvasu", "U. Phalguni", "U. Shada", "P. Bhadrapada"], "Sukra", "Specific benefic events, lasting impacts"),
+        "Amrit": (["Pushya", "P. Phalguni", "Abhijit", "Satabisha"], "Budha", "Everlasting benefic results throughout life"),
+        "Pawan": (["Ashlesha", "Magha", "Sravana", "Dhanishta"], "Chandra", "Quick travel, rapid minor results")
+    }
+    for nadi, (naks, lord, quality) in nadi_mapping.items():
+        if nakshatra in naks:
+            return nadi, lord, quality
+    return "Unknown", "Unknown", "N/A"
 
-@dataclass
-class MarketProfile:
-    asset_name: str
-    janma_nakshatra_idx: int
-    janma_rasi_idx: int
-    janma_tithi_idx: int
-    name_consonant: str
-    name_vowel: str
+def calculate_navatara(janma_nak, target_nak):
+    """Calculates Navatara series classification relative to Janma Nakshatra."""
+    if janma_nak not in NAKSHATRAS or target_nak not in NAKSHATRAS:
+        return "N/A", "Unknown"
+    
+    # Exclude Abhijit for Navatara calculation per standard SBC rule
+    std_naks = [n for n in NAKSHATRAS if n != "Abhijit"]
+    if janma_nak == "Abhijit" or target_nak == "Abhijit":
+        return "Neutral", "Abhijit Special Point"
+        
+    j_idx = std_naks.index(janma_nak)
+    t_idx = std_naks.index(target_nak)
+    
+    diff = (t_idx - j_idx) % 27 + 1
+    tara_num = ((diff - 1) % 9) + 1
+    
+    taras = {
+        1: ("Janma (Danger/Stress)", "Malefic"),
+        2: ("Sampat (Wealth/Prosperity)", "Benefic"),
+        3: ("Vipat (Loss/Accident)", "Malefic"),
+        4: ("Kshema (Prosperity/Wellbeing)", "Benefic"),
+        5: ("Pratwara (Obstacles/Delays)", "Malefic"),
+        6: ("Sadhaka (Success/Achievement)", "Benefic"),
+        7: ("Naidhana (Severe Obstacles/Death)", "Malefic"),
+        8: ("Mitra (Friendship/Gain)", "Benefic"),
+        9: ("Param Mitra (Intimate Friend/High Gain)", "Benefic")
+    }
+    return taras[tara_num]
 
-class SarvatobhadraChakra:
-    NAKSHATRAS_28 = [
-        "Aswini", "Bharani", "Krittika", "Rohini", "Mrigasira", "Ardra",
-        "Punarvasu", "Pushya", "Ashlesha", "Magha", "P. Phalguni", "U. Phalguni",
-        "Hasta", "Chitra", "Swati", "Visakha", "Anuradha", "Jyeshta",
-        "Moola", "P. Shada", "U. Shada", "Abhijit", "Sravana", "Dhanishta",
-        "Satabisha", "P. Bhadrapada", "U. Bhadrapada", "Revati"
-    ]
-
-    RASIS = [
-        "Mesha (Aries)", "Vrisabha (Taurus)", "Mithuna (Gemini)", "Karka (Cancer)",
-        "Simha (Leo)", "Kanya (Virgo)", "Tula (Libra)", "Vriscika (Scorpio)",
-        "Dhanur (Sagittarius)", "Makara (Capricorn)", "Kumbha (Aquarius)", "Mina (Pisces)"
-    ]
-
-    def get_28_nakshatra_from_longitude(self, lon: float) -> Tuple[str, int, int]:
-        lon = lon % 360.0
-        abhijit_start = 276.666667
-        abhijit_end = 280.888889
-
-        if abhijit_start <= lon < abhijit_end:
-            nak_name = "Abhijit"
-            nak_idx = 21
-            span = abhijit_end - abhijit_start
-            pada = int(((lon - abhijit_start) / span) * 4) + 1
-            return nak_name, nak_idx, min(pada, 4)
-
-        if lon < abhijit_start:
-            nak_float = lon / (360.0 / 27.0)
-            nak_idx = int(nak_float)
-            pada = int((nak_float - nak_idx) * 4) + 1
-            return self.NAKSHATRAS_28[nak_idx], nak_idx, min(pada, 4)
-        else:
-            remaining_lon = lon - abhijit_end
-            standard_span = 360.0 / 27.0
-            sravana_offset_idx = int(remaining_lon / standard_span)
-            nak_idx = 22 + sravana_offset_idx
-            pada = int(((remaining_lon - (sravana_offset_idx * standard_span)) / standard_span) * 4) + 1
-            return self.NAKSHATRAS_28[min(nak_idx, 27)], min(nak_idx, 27), min(pada, 4)
-
-    def calculate_vedha_targets(self, graha: Graha) -> Dict[str, Optional[int]]:
-        _, nak_idx, _ = self.get_28_nakshatra_from_longitude(graha.longitude)
-        motion = graha.determine_motion()
-
-        if motion == MotionType.NORMAL:
-            target_nak_idx = (nak_idx + 14) % 28
-        elif motion == MotionType.RETROGRADE:
-            target_nak_idx = (nak_idx + 7) % 28
-        else:  # FAST (Left)
-            target_nak_idx = (nak_idx - 7) % 28
-
-        return {
-            "motion_used": motion.value,
-            "source_nak_idx": nak_idx,
-            "target_nak_idx": target_nak_idx,
-            "target_rasi_idx": int((target_nak_idx / 28.0) * 12),
-        }
-
-    def evaluate_panchaka_affliction(self, transiting_grahas: List[Graha], market: MarketProfile) -> Dict:
-        afflictions = {
-            "Nakshatra": False,
-            "Rasi": False,
-            "Tithi": False,
-            "Consonant": False,
-            "Vowel": False,
-        }
-
-        malefic_score = 0.0
-        benefic_score = 0.0
-
-        for graha in transiting_grahas:
-            vedha = self.calculate_vedha_targets(graha)
-            target_nak = vedha["target_nak_idx"]
-            weight = 2.0 if graha.is_retrograde else 1.0
-
-            if target_nak == market.janma_nakshatra_idx:
-                afflictions["Nakshatra"] = True
-                if graha.nature == Nature.MALEFIC:
-                    malefic_score += 1.0 * weight
-                else:
-                    benefic_score += 1.0 * weight
-
-            if vedha["target_rasi_idx"] == market.janma_rasi_idx:
-                afflictions["Rasi"] = True
-                if graha.nature == Nature.MALEFIC:
-                    malefic_score += 0.75 * weight
-                else:
-                    benefic_score += 0.75 * weight
-
-        afflicted_count = sum(1 for v in afflictions.values() if v)
-        net_score = malefic_score - benefic_score
-
-        if net_score > 0:
-            market_signal = "BEARISH / VOLATILE"
-            signal_color = "red"
-        elif net_score < 0:
-            market_signal = "BULLISH / POSITIVE"
-            signal_color = "green"
-        else:
-            market_signal = "NEUTRAL / SIDEWAYS"
-            signal_color = "orange"
-
-        return {
-            "afflicted_components": afflictions,
-            "afflicted_count": afflicted_count,
-            "malefic_score": malefic_score,
-            "benefic_score": benefic_score,
-            "net_score": net_score,
-            "market_signal": market_signal,
-            "signal_color": signal_color
-        }
+def evaluate_vedha_impact(afflicted_components, transiting_planets):
+    """Evaluates Vedha results based on principles in text."""
+    count = len(afflicted_components)
+    malefic_count = sum(1 for p in transiting_planets if p in MALEFICS)
+    benefic_count = sum(1 for p in transiting_planets if p in BENEFICS)
+    
+    summary = []
+    if malefic_count > 0:
+        if count == 1:
+            summary.append("Failure in efforts, disputes, and minor friction.")
+        elif count == 2:
+            summary.append("Fear, anxiety, and financial loss.")
+        elif count == 3:
+            summary.append("Severe obstacles, destruction of objectives, and defeat.")
+        elif count >= 4:
+            summary.append("Critical affliction: Severe illness, health danger, or complete failure.")
+    
+    if benefic_count > 0:
+        summary.append("Benefic Vedha active: Provides protection, unexpected gains, and success in endeavors.")
+        
+    if not summary:
+        summary.append("No active Vedha afflictions detected on key natal sensitive points.")
+        
+    return " ".join(summary)
 
 # ==========================================
-# 3. STREAMLIT UI IMPLEMENTATION
+# CHART DRAWING ROUTINE (MATPLOTLIB)
+# ==========================================
+
+def generate_sbc_chart(janma_nak, transits):
+    """Generates the 9x9 Sarvatobhadra Chakra visual representation."""
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(0, 9)
+    ax.set_ylim(0, 9)
+    ax.axis('off')
+
+    # Base Grid Construction
+    for i in range(10):
+        ax.plot([0, 9], [i, i], color='black', lw=1.5)
+        ax.plot([i, i], [0, 9], color='black', lw=1.5)
+
+    # Fill Outer Ring (28 Nakshatras)
+    for row, col, name in OUTER_NAKSHATRA_POSITIONS:
+        # Check if Janma Nakshatra
+        bg_color = '#FFD700' if name == janma_nak else '#F0F8FF'
+        rect = patches.Rectangle((col, 8 - row), 1, 1, facecolor=bg_color, edgecolor='black', lw=1)
+        ax.add_patch(rect)
+        
+        # Display Transits
+        planet_str = ""
+        for p_name, p_nak in transits.items():
+            if p_nak == name:
+                planet_str += f"\n[{p_name[:3]}]"
+                
+        ax.text(col + 0.5, 8 - row + 0.5, f"{name}{planet_str}", 
+                ha='center', va='center', fontsize=7, fontweight='bold')
+
+    # Fill Inner Ring Details
+    for (row, col), label in INNER_GRID_LAYOUT.items():
+        rect = patches.Rectangle((col, 8 - row), 1, 1, facecolor='#FAFAFA', edgecolor='black', lw=0.5)
+        ax.add_patch(rect)
+        ax.text(col + 0.5, 8 - row + 0.5, label, ha='center', va='center', fontsize=7, color='#333333')
+
+    # Center Corner Accent (Varga 81 Center)
+    rect_center = patches.Rectangle((4, 4), 1, 1, facecolor='#E6F2FF', edgecolor='black', lw=1.5)
+    ax.add_patch(rect_center)
+    ax.text(4.5, 4.5, "CENTER\n(Poornima/Sat)", ha='center', va='center', fontsize=8, fontweight='bold', color='#003366')
+
+    plt.tight_layout()
+    return fig
+
+# ==========================================
+# PDF GENERATION ROUTINE (REPORTLAB)
+# ==========================================
+
+def generate_pdf_report(name, janma_nak, janma_rasi, tithi, vowel, nadi, lord, quality, taras_df, transits_df, summary_text):
+    """Generates a downloadable PDF report summarizing SBC Analysis."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=18, leading=22, alignment=1, textColor=colors.HexColor('#1A365D'))
+    h2_style = ParagraphStyle('Heading2', parent=styles['Heading2'], fontSize=12, leading=16, textColor=colors.HexColor('#2C5282'))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=9, leading=12)
+
+    story = []
+    
+    # Header
+    story.append(Paragraph("<b>SARVATOBHADRA CHAKRA ASTROLOGICAL REPORT</b>", title_style))
+    story.append(Spacer(1, 12))
+    
+    # Native Summary Table
+    meta_data = [
+        [Paragraph(f"<b>Native Name:</b> {name}", body_style), Paragraph(f"<b>Janma Nakshatra:</b> {janma_nak}", body_style)],
+        [Paragraph(f"<b>Janma Rasi:</b> {janma_rasi}", body_style), Paragraph(f"<b>Janma Tithi:</b> {tithi}", body_style)],
+        [Paragraph(f"<b>Name Vowel:</b> {vowel}", body_style), Paragraph(f"<b>Sapta Nadi:</b> {nadi} (Lord: {lord})", body_style)]
+    ]
+    meta_table = Table(meta_data, colWidths=[260, 260])
+    meta_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#CBD5E0')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('PADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 14))
+
+    # Sapta Nadi Details
+    story.append(Paragraph("<b>1. Sapta Nadi Overview</b>", h2_style))
+    story.append(Paragraph(f"<b>Nadi Nature & Effects:</b> {quality}", body_style))
+    story.append(Spacer(1, 10))
+
+    # Active Transits & Vedha
+    story.append(Paragraph("<b>2. Current Planetary Transits</b>", h2_style))
+    t_data = [["Planet", "Transiting Nakshatra", "Navatara Position", "Nature"]]
+    for _, row in transits_df.iterrows():
+        t_data.append([row['Planet'], row['Transiting Nakshatra'], row['Navatara Classification'], row['Nature']])
+    
+    t_table = Table(t_data, colWidths=[120, 140, 160, 100])
+    t_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+        ('PADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t_table)
+    story.append(Spacer(1, 14))
+
+    # Vedha Assessment Summary
+    story.append(Paragraph("<b>3. Vedha Impact & Predictive Summary</b>", h2_style))
+    story.append(Paragraph(summary_text, body_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# ==========================================
+# STREAMLIT USER INTERFACE
 # ==========================================
 
 def main():
-    try:
-        sbc = SarvatobhadraChakra()
+    st.title("🔮 Sarvatobhadra Chakra (SBC) Web Application")
+    st.markdown("Automated Vedha, Sapta Nadi, and Navatara Predictive Analysis Engine")
+    st.divider()
 
-        st.title("🪙 Sarvatobhadra Chakra (SBC) - Gold Trading Engine")
-        st.caption("Precision 28-Nakshatra & Panchaka Affliction Analytics for Commodity Markets")
+    # Sidebar - Input Configuration
+    st.sidebar.header("📋 Native Natal Details")
+    native_name = st.sidebar.text_input("Native Name", value="Commander Ultra Maharaja")
+    janma_nak = st.sidebar.selectbox("Janma Nakshatra (Moon Star)", NAKSHATRAS, index=0)
+    janma_rasi = st.sidebar.selectbox("Janma Rasi (Moon Sign)", RASIS, index=0)
+    janma_tithi = st.sidebar.selectbox("Janma Tithi", TITHI_GROUPS, index=0)
+    janma_vowel = st.sidebar.selectbox("Name Initial Vowel", VOWELS, index=0)
 
-        st.sidebar.header("🎯 Target Asset Profile")
-        asset_name = st.sidebar.text_input("Asset / Commodity Name", value="Gold (Suvarna)")
+    st.sidebar.header("🪐 Transiting Planetary Positions")
+    transit_positions = {}
+    
+    # Default initial nakshatra positions for planets
+    defaults = ["Krittika", "Rohini", "Mrigasira", "Ardra", "Punarvasu", "Pushya", "Ashlesha", "Magha", "P. Phalguni"]
+    all_planets = MALEFICS + BENEFICS
+    
+    for idx, planet in enumerate(all_planets):
+        def_idx = idx % len(defaults)
+        transit_positions[planet] = st.sidebar.selectbox(f"{planet}", NAKSHATRAS, index=def_idx, key=f"p_{idx}")
+
+    # Calculations
+    nadi, lord, quality = calculate_sapta_nadi(janma_nak)
+
+    # Layout Columns
+    col1, col2 = st.columns([1.2, 1])
+
+    with col1:
+        st.subheader("🕸️ Sarvatobhadra Chakra Visualization")
+        fig = generate_sbc_chart(janma_nak, transit_positions)
+        st.pyplot(fig)
+
+    with col2:
+        st.subheader("📊 Native Panchaka & Nadi Analysis")
+        st.info(f"**Janma Nakshatra:** {janma_nak} | **Rasi:** {janma_rasi}")
         
-        janma_nak = st.sidebar.selectbox(
-            "Asset Janma Nakshatra",
-            options=sbc.NAKSHATRAS_28,
-            index=15 # Visakha by default
-        )
-        janma_nak_idx = sbc.NAKSHATRAS_28.index(janma_nak)
+        # Sapta Nadi Display
+        st.markdown(f"### Sapta Nadi: **{nadi}**")
+        st.markdown(f"- **Nadi Lord:** {lord}")
+        st.markdown(f"- **Characteristics:** {quality}")
 
-        janma_rasi = st.sidebar.selectbox(
-            "Asset Janma Rasi",
-            options=sbc.RASIS,
-            index=6 # Tula by default
-        )
-        janma_rasi_idx = sbc.RASIS.index(janma_rasi)
-
-        market_profile = MarketProfile(
-            asset_name=asset_name,
-            janma_nakshatra_idx=janma_nak_idx,
-            janma_rasi_idx=janma_rasi_idx,
-            janma_tithi_idx=1,
-            name_consonant="S",
-            name_vowel="U"
-        )
-
-        st.subheader("🪐 Transiting Planetary Configurations")
-        st.write("Configure the current positions and motions of transit planets:")
-
-        col1, col2, col3 = st.columns(3)
-
-        # Saturn Config
-        with col1:
-            st.markdown("### 🪐 Saturn (Sani)")
-            sat_lon = st.number_input("Saturn Longitude (°)", 0.0, 360.0, 320.5, step=1.0)
-            sat_spd = st.number_input("Saturn Speed (arcmin/day)", -10.0, 15.0, 1.5)
-            sat_retro = st.checkbox("Saturn Retrograde", value=True)
-
-        # Mars Config
-        with col2:
-            st.markdown("### 🔴 Mars (Mangala)")
-            mars_lon = st.number_input("Mars Longitude (°)", 0.0, 360.0, 145.2, step=1.0)
-            mars_spd = st.number_input("Mars Speed (arcmin/day)", -20.0, 60.0, 45.0)
-            mars_retro = st.checkbox("Mars Retrograde", value=False)
-
-        # Jupiter Config
-        with col3:
-            st.markdown("### 🟡 Jupiter (Guru)")
-            jup_lon = st.number_input("Jupiter Longitude (°)", 0.0, 360.0, 85.0, step=1.0)
-            jup_spd = st.number_input("Jupiter Speed (arcmin/day)", -10.0, 20.0, 6.0)
-            jup_retro = st.checkbox("Jupiter Retrograde", value=False)
-
-        # Aggregate transits
-        transits = [
-            Graha("Sani (Saturn)", sat_lon, sat_spd, is_retrograde=sat_retro, nature=Nature.MALEFIC),
-            Graha("Mangala (Mars)", mars_lon, mars_spd, is_retrograde=mars_retro, nature=Nature.MALEFIC),
-            Graha("Guru (Jupiter)", jup_lon, jup_spd, is_retrograde=jup_retro, nature=Nature.BENEFIC),
-        ]
-
-        st.divider()
-
-        # Run Analysis
-        result = sbc.evaluate_panchaka_affliction(transits, market_profile)
-
-        # Display Summary Dashboard Metrics
-        st.subheader("📈 Market Analysis & Signal Output")
+        # Transits vs Navatara Table
+        st.subheader("⚡ Transit Vedha & Navatara Status")
+        transit_data = []
+        afflicted_components = []
         
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("Target Asset", asset_name)
-        m_col2.metric("Afflicted Components", f"{result['afflicted_count']} / 5")
-        m_col3.metric("Net Aspect Score", f"{result['net_score']:.2f}")
-        
-        signal = result['market_signal']
-        if result['signal_color'] == "red":
-            m_col4.error(f"Signal: {signal}")
-        elif result['signal_color'] == "green":
-            m_col4.success(f"Signal: {signal}")
-        else:
-            m_col4.warning(f"Signal: {signal}")
-
-        st.subheader("📋 Planetary Vedha & Target Breakdown")
-        breakdown_data = []
-        for g in transits:
-            nak_name, nak_idx, pada = sbc.get_28_nakshatra_from_longitude(g.longitude)
-            vedha = sbc.calculate_vedha_targets(g)
-            target_nak_name = sbc.NAKSHATRAS_28[vedha["target_nak_idx"]]
-            
-            breakdown_data.append({
-                "Planet": g.name,
-                "Nature": g.nature.value,
-                "Longitude": f"{g.longitude:.2f}°",
-                "Nakshatra": f"{nak_name} (Pada {pada})",
-                "Motion": vedha["motion_used"],
-                "Vedha Target Nakshatra": target_nak_name,
-                "Retro Multiplier": "200%" if g.is_retrograde else "100%"
+        for planet, nak in transit_positions.items():
+            tara_name, nature = calculate_navatara(janma_nak, nak)
+            p_type = "Malefic" if planet in MALEFICS else "Benefic"
+            transit_data.append({
+                "Planet": planet,
+                "Transiting Nakshatra": nak,
+                "Navatara Classification": tara_name,
+                "Nature": p_type
             })
+            if nak == janma_nak:
+                afflicted_components.append(f"{planet} on Janma Nakshatra")
 
-        st.dataframe(breakdown_data, use_container_width=True)
+        transits_df = pd.DataFrame(transit_data)
+        st.dataframe(transits_df, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+    # Detailed Summary & PDF Generation
+    st.divider()
+    st.subheader("📑 Forecast Summary & Report Generation")
+    
+    summary_text = evaluate_vedha_impact(afflicted_components, transit_positions.keys())
+    st.write(summary_text)
+
+    # PDF Download Button
+    pdf_buffer = generate_pdf_report(
+        native_name, janma_nak, janma_rasi, janma_tithi, janma_vowel,
+        nadi, lord, quality, None, transits_df, summary_text
+    )
+    
+    st.download_button(
+        label="📄 Download Detailed PDF Report",
+        data=pdf_buffer,
+        file_name=f"Sarvatobhadra_Chakra_Report_{native_name.replace(' ', '_')}.pdf",
+        mime="application/pdf"
+    )
 
 if __name__ == "__main__":
     main()
