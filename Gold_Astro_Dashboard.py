@@ -47,6 +47,29 @@ SBC_GRID_POSITIONS = {
 GRID_TO_NAKSHATRA = {v: k for k, v in SBC_GRID_POSITIONS.items()}
 
 # -------------------------------------------------------------------
+# VARNADIPANCHAK MAPPING (INNER 7x7 GRID LAYOUT)
+# -------------------------------------------------------------------
+VARNADIPANCHAK_GRID = {
+    # Layer 1 (Outer Inner Border - Svara/Vowels & Tithi)
+    (1, 1): "अ / Nanda",   (1, 2): "आ / Bhadra",  (1, 3): "इ / Jaya",    (1, 4): "ई / Rikta",   (1, 5): "उ / Purna",   (1, 6): "ऊ / Nanda",   (1, 7): "ऋ / Bhadra",
+    (2, 1): "अः / Purna",  (3, 1): "अं / Rikta",  (4, 1): "औ / Jaya",    (5, 1): "ओ / Bhadra",  (6, 1): "ऐ / Nanda",   (7, 1): "ए / Purna",
+    (2, 7): "ॠ / Jaya",    (3, 7): "ऌ / Rikta",   (4, 7): "ॡ / Purna",   (5, 7): "ए / Nanda",   (6, 7): "ऐ / Bhadra",  (7, 7): "ओ / Jaya",
+    (7, 2): "अः / Rikta",  (7, 3): "अं / Purna",  (7, 4): "औ / Nanda",   (7, 5): "ओ / Bhadra",  (7, 6): "ऐ / Jaya",
+
+    # Layer 2 (Rashi & Varna Outer)
+    (2, 2): "Mesha (Aries)",    (2, 3): "Vrishaba (Taurus)", (2, 4): "Mithuna (Gemini)", (2, 5): "Karka (Cancer)",   (2, 6): "Simha (Leo)",
+    (3, 2): "Meena (Pisces)",                                                                                         (3, 6): "Kanya (Virgo)",
+    (4, 2): "Kumbha (Aqua)",                                                                                          (4, 6): "Tula (Libra)",
+    (5, 2): "Makara (Capri)",                                                                                         (5, 6): "Vrishchika (Scorpio)",
+    (6, 2): "Dhanu (Sagit)",    (6, 3): "क, ख, ग, घ",        (6, 4): "च, छ, ज, झ",       (6, 5): "ट, ठ, ड, ढ",    (6, 6): "त, थ, द, ध",
+
+    # Layer 3 (Inner Varna & Svara Core)
+    (3, 3): "प, फ, ब, भ", (3, 4): "म, य, र, ल", (3, 5): "व, श, ष, स",
+    (4, 3): "ह, क्ष",      (4, 4): "☸ CENTER",   (4, 5): "अ, आ, इ, ई",
+    (5, 3): "उ, ऊ, ऋ, ॠ", (5, 4): "ऌ, ॡ, ए, ऐ", (5, 5): "ओ, औ, अं, अः"
+}
+
+# -------------------------------------------------------------------
 # 2. ACCURATE NAKSHATRA MAPPING
 # -------------------------------------------------------------------
 def get_sbc_nakshatra(lon: float) -> str:
@@ -210,7 +233,7 @@ def analyze_gold_market(planet_data):
     return {"Signal": signal, "Bias": bias, "Score": score, "Bullish Factors": bullish_factors, "Bearish Factors": bearish_factors}
 
 # -------------------------------------------------------------------
-# 5. SVG + HTML 9x9 GRID RENDERER
+# 5. SVG + HTML 9x9 GRID RENDERER WITH VARNADIPANCHAK
 # -------------------------------------------------------------------
 def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
     CELL_SIZE = 100
@@ -276,9 +299,10 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
         body {{ margin: 0; background-color: #0e1117; color: white; }}
         .sbc-container {{ position: relative; width: 100%; max-width: 650px; margin: 0 auto; aspect-ratio: 1 / 1; }}
         .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
-        .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; box-sizing: border-box; }}
+        .sbc-cell-svg {{ border: 1px solid #333; vertical-align: middle; padding: 2px; font-size: 10px; box-sizing: border-box; word-wrap: break-word; }}
         .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
-        .sbc-inner-svg {{ background-color: #0d0f12; color: #444; }}
+        .sbc-inner-varna {{ background-color: #0d131a; color: #8a9ba8; font-size: 9px; font-weight: 500; }}
+        .sbc-center-cell {{ background-color: #161020; color: #d0a0ff; font-weight: bold; }}
         .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
         .bg-malefic {{ background-color: #ff4b4b; color: white; }}
         .bg-benefic {{ background-color: #00c853; color: white; }}
@@ -312,7 +336,10 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                 </td>
                 """
             else:
-                html += "<td class='sbc-cell-svg sbc-inner-svg'></td>"
+                varna_val = VARNADIPANCHAK_GRID.get((r, c), "")
+                is_center = (r == 4 and c == 4)
+                inner_cls = "sbc-cell-svg sbc-center-cell" if is_center else "sbc-cell-svg sbc-inner-varna"
+                html += f"<td class='{inner_cls}'>{varna_val}</td>"
         html += "</tr>"
 
     html += "</table></div></body></html>"
@@ -432,7 +459,7 @@ with col_b:
 # Visual SBC Grid with Filter Presets
 st.divider()
 st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
-st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target")
+st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target | 🔤 Inner 7x7 Grid = Varnadipanchak")
 
 st.write("**Quick Presets:**")
 btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
@@ -460,7 +487,6 @@ selected_planets = st.multiselect(
     key="planet_multiselect_filter"
 )
 
-# FIXED: Render via isolated HTML Component to prevent text exposure
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
 st.components.v1.html(sbc_html, height=670, scrolling=False)
 
