@@ -34,55 +34,105 @@ AVERAGE_DAILY_SPEEDS = {
 MALEFICS = ["Sun", "Mars", "Saturn", "Rahu", "Ketu"]
 BENEFICS = ["Jupiter", "Venus", "Mercury", "Moon"]
 
+# SBC Outer Ring Mapping (28 Nakshatras including Abhijit)
+# Standard orientation based on provided image layout
 SBC_GRID_POSITIONS = {
-    "Krittika": (0, 1), "Rohini": (0, 2), "Mrigashira": (0, 3), "Ardra": (0, 4), 
-    "Punarvasu": (0, 5), "Pushya": (0, 6), "Ashlesha": (0, 7),
-    "Magha": (1, 8), "Purva Phalguni": (2, 8), "Uttara Phalguni": (3, 8), "Hasta": (4, 8), 
-    "Chitra": (5, 8), "Svati": (6, 8), "Vishakha": (7, 8),
-    "Anuradha": (8, 7), "Jyeshtha": (8, 6), "Mula": (8, 5), "Purva Ashadha": (8, 4), 
-    "Uttara Ashadha": (8, 3), "Abhijit": (8, 2), "Shravana": (8, 1),
-    "Dhanishta": (7, 0), "Shatabhisha": (6, 0), "Purva Bhadrapada": (5, 0), "Uttara Bhadrapada": (4, 0), 
-    "Revati": (3, 0), "Ashwini": (2, 0), "Bharani": (1, 0)
+    # Top Row (North): Left to Right
+    "Dhanishta": (0, 1), "Shatabhisha": (0, 2), "Purva Bhadrapada": (0, 3), 
+    "Uttara Bhadrapada": (0, 4), "Revati": (0, 5), "Ashwini": (0, 6), "Bharani": (0, 7),
+
+    # Right Column (East): Top to Bottom
+    "Krittika": (1, 8), "Rohini": (2, 8), "Mrigashira": (3, 8), "Ardra": (4, 8), 
+    "Punarvasu": (5, 8), "Pushya": (6, 8), "Ashlesha": (7, 8),
+
+    # Bottom Row (South): Right to Left
+    "Magha": (8, 7), "Purva Phalguni": (8, 6), "Uttara Phalguni": (8, 5), 
+    "Hasta": (8, 4), "Chitra": (8, 3), "Svati": (8, 2), "Vishakha": (8, 1),
+
+    # Left Column (West): Bottom to Top
+    "Anuradha": (7, 0), "Jyeshtha": (6, 0), "Mula": (5, 0), "Purva Ashadha": (4, 0), 
+    "Uttara Ashadha": (3, 0), "Abhijit": (2, 0), "Shravana": (1, 0)
 }
 
 GRID_TO_NAKSHATRA = {v: k for k, v in SBC_GRID_POSITIONS.items()}
 
+# Display Name Shortening Map for Nakshatras
+NAK_SHORT_NAMES = {
+    "Dhanishta": "Dhan", "Shatabhisha": "Shat", "Purva Bhadrapada": "P.Bha", 
+    "Uttara Bhadrapada": "U.Bha", "Revati": "Reva", "Ashwini": "Asvi", "Bharani": "Bhar",
+    "Krittika": "Krit", "Rohini": "Rohi", "Mrigashira": "Mrig", "Ardra": "Ardr", 
+    "Punarvasu": "Puna", "Pushya": "Push", "Ashlesha": "Ashl",
+    "Magha": "Magh", "Purva Phalguni": "P.Pha", "Uttara Phalguni": "U.Pha", 
+    "Hasta": "Hast", "Chitra": "Chit", "Svati": "Swat", "Vishakha": "Vish",
+    "Anuradha": "Anu", "Jyeshtha": "Jyes", "Mula": "Mula", "Purva Ashadha": "P.Sha", 
+    "Uttara Ashadha": "U.Sha", "Abhijit": "Abhi", "Shravana": "Srav"
+}
+
 # -------------------------------------------------------------------
-# CLASSICAL SARVATOBHADRA CHAKRA INNER GRID (81-CELL SYSTEM)
-# Corner Swaras, Inner Swaras, Varna (Consonants), Rashis, Tithi/Vaara
+# EXACT SARVATOBHADRA CHAKRA INNER GRID (7x7 INNER MATRIX)
+# Matched precisely to the reference image structure
 # -------------------------------------------------------------------
 VARNADIPANCHAK_GRID = {
-    # 4 Corner Vowels (Outer Grid Corners)
-    (0, 0): "अ",
-    (0, 8): "आ",
-    (8, 8): "इ",
-    (8, 0): "ई",
+    # 4 Outer Corner Vowels
+    (0, 0): "ई ī",
+    (0, 8): "अ a",
+    (8, 8): "आ ā",
+    (8, 0): "इ i",
 
     # Ring 1: Swara / Vowel Band
-    (1, 1): "उ",  (1, 2): "ऊ",  (1, 3): "ऋ",  (1, 4): "ॠ",  (1, 5): "ऌ",  (1, 6): "ॡ",  (1, 7): "ए",
-    (2, 7): "ऐ",  (3, 7): "ओ",  (4, 7): "औ",  (5, 7): "अं",  (6, 7): "अः",
-    (7, 1): "अः", (7, 2): "अं", (7, 3): "औ",  (7, 4): "ओ",  (7, 5): "ऐ",  (7, 6): "ए",
-    (2, 1): "ॡ",  (3, 1): "ऌ",  (4, 1): "ॠ",  (5, 1): "ऋ",  (6, 1): "ऊ",
+    (1, 1): "ऋ ṛ",  (1, 2): "ग ga", (1, 3): "स sa", (1, 4): "द da", (1, 5): "च ca", (1, 6): "ल la", (1, 7): "उ u",
+    (2, 7): "अ a",  (3, 7): "व va", (4, 7): "क ka", (5, 7): "ह ha", (6, 7): "ड ḍa", (7, 7): "ऊ ū",
+    (7, 6): "म ma", (7, 5): "ट ṭa", (7, 4): "प pa", (7, 3): "र ra", (7, 2): "त ta", (7, 1): "ऋ ṛ",
+    (6, 1): "न na", (5, 1): "य ya", (4, 1): "भ bha", (3, 1): "ज ja", (2, 1): "ख kha",
 
-    # Ring 2: Varna / Consonant (Akshara) Groups
-    (2, 2): "क ख ग घ",     (2, 3): "ङ च छ ज",     (2, 4): "झ ञ ट ठ",     (2, 5): "ड ढ ण त",     (2, 6): "थ द ध न",
-    (3, 6): "प फ ब भ",     (4, 6): "म य र ल",     (5, 6): "व श ष स",     (6, 6): "ह क्ष",
-    (6, 2): "त थ द ध",     (6, 3): "ण ड ढ ट",     (6, 4): "ठ झ ञ च",     (6, 5): "छ ज ग ख",
-    (3, 2): "न प फ ब",     (4, 2): "भ म य र",     (5, 2): "ल व श ष",
+    # Ring 2: Consonants & Vowels
+    (2, 2): "ऐ ai", (2, 6): "ऌ ḷ",
+    (6, 6): "ॡ ḹ", (6, 2): "ए e",
 
     # Ring 3: 12 Rashis (Zodiac Signs)
-    (3, 3): "Vrishabha (Taurus)",   (3, 4): "Mithuna (Gemini)",   (3, 5): "Karka (Cancer)",
-    (4, 5): "Simha (Leo)",          (5, 5): "Kanya (Virgo)",      (5, 4): "Tula (Libra)",
-    (5, 3): "Vrishchika (Scorpio)", (4, 3): "Dhanu (Sagittarius)",(3, 3): "Mesha (Aries)",
+    (2, 3): "Aq", (2, 4): "Pi", (2, 5): "Ar",
+    (3, 5): "Ta", (4, 5): "Ge", (5, 5): "Ca",
+    (5, 4): "Le", (5, 3): "Vi", (5, 2): "Li",
+    (4, 2): "Sc", (3, 2): "Sg", (3, 3): "Cp",
 
-    # Inner Core: Tithi Groups & Weekdays / Center
-    (4, 4): "☸ CENTER",
+    # Inner Core: Tithis & Center
+    (3, 4): "अः aḥ<br><span style='font-size:8px; color:#aaa;'>Rikta<br>Fri</span>",
+    (4, 4): "Purna<br><span style='font-size:8px; color:#aaa;'>Sat</span>",
+    (4, 3): "Jaya<br><span style='font-size:8px; color:#aaa;'>Thu</span>",
+    (4, 5): "Nanda<br><span style='font-size:8px; color:#aaa;'>Sun Tue</span>",
+    (5, 3): "Li", # Handled via layout grid
+    (4, 4): "Purna<br><span style='font-size:8px; color:#aaa;'>Sat</span>",
+    (5, 4): "Bhadra<br><span style='font-size:8px; color:#aaa;'>Mon Wed</span>",
+    (4, 3): "Jaya<br><span style='font-size:8px; color:#aaa;'>Thu</span>",
+    (4, 2): "Sc",
+    (3, 3): "Cp",
+    (4, 3): "Jaya<br><span style='font-size:8px; color:#aaa;'>Thu</span>",
+    (3, 4): "अः aḥ",
+    (4, 4): "Purna<br><span style='font-size:8px; color:#aaa;'>Sat</span>",
 }
+
+# Accurate Inner 5x5 Grid explicit cell definitions to match screenshot
+EXACT_INNER_GRID = {
+    (2, 2): "ख kha", (2, 3): "ऐ ai", (2, 4): "Aq", (2, 5): "Pi", (2, 6): "Ar", (2, 7): "ऌ ḷ", (2, 8): "Rohi",
+    (3, 2): "ज ja",  (3, 3): "Cp",   (3, 4): "अः aḥ<br><span style='font-size:8px; color:#888;'>Rikta<br>Fri</span>", (3, 5): "ओ o", (3, 6): "Ta",
+    (4, 2): "भ bha", (4, 3): "Sg",   (4, 4): "Jaya<br><span style='font-size:8px; color:#888;'>Thu</span>", 
+    (4, 5): "Purna<br><span style='font-size:8px; color:#888;'>Sat</span>", 
+    (4, 6): "Nanda<br><span style='font-size:8px; color:#888;'>Sun Tue</span>", (4, 7): "Ge",
+    (5, 2): "य ya",  (5, 3): "Sc",   (5, 4): "अं aṃ", (5, 5): "Bhadra<br><span style='font-size:8px; color:#888;'>Mon Wed</span>", 
+    (5, 6): "औ au",  (5, 7): "Ca",
+    (6, 2): "न na",  (6, 3): "ए e",  (6, 4): "Li", (6, 5): "Vi", (6, 6): "Le", (6, 7): "ॡ ḹ"
+}
+
+# Combine into master grid mapping
+for k, v in EXACT_INNER_GRID.items():
+    VARNADIPANCHAK_GRID[k] = v
+
 
 # -------------------------------------------------------------------
 # 2. ACCURATE NAKSHATRA MAPPING
 # -------------------------------------------------------------------
 def get_sbc_nakshatra(lon: float) -> str:
+    lon = lon % 360
     if 276.6667 <= lon < 280.8889:
         return "Abhijit"
     idx = int(lon // (360.0 / 27.0))
@@ -117,6 +167,7 @@ def calculate_vedha(planet: str, nakshatra: str, speed: float):
     motion = get_motion_status(planet, speed)
     r, c = SBC_GRID_POSITIONS[nakshatra]
 
+    # Directions tailored to outer perimeter orientation
     if r == 0:   (dr_f, dc_f), (dr_l, dc_l), (dr_r, dc_r) = (1, 0), (1, 1), (1, -1)
     elif r == 8: (dr_f, dc_f), (dr_l, dc_l), (dr_r, dc_r) = (-1, 0), (-1, -1), (-1, 1)
     elif c == 8: (dr_f, dc_f), (dr_l, dc_l), (dr_r, dc_r) = (0, -1), (1, -1), (-1, -1)
@@ -146,6 +197,7 @@ def calculate_vedha(planet: str, nakshatra: str, speed: float):
     }
 
 def get_ephemeris_data(dt: datetime.datetime):
+    # Ensure timezone awareness and correct UTC conversion
     utc_dt = dt.astimezone(datetime.timezone.utc)
     planet_data = []
 
@@ -157,6 +209,7 @@ def get_ephemeris_data(dt: datetime.datetime):
     if SWISS_EPH_AVAILABLE:
         try:
             swe.set_sid_mode(swe.SIDM_LAHIRI)
+            # Precision Julian Day calculation from UTC
             julian_day = swe.julday(
                 utc_dt.year, utc_dt.month, utc_dt.day, 
                 utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
@@ -186,18 +239,29 @@ def get_ephemeris_data(dt: datetime.datetime):
         except Exception:
             pass
 
-    # Standard Fallback Positions
-    fallback_naks = {
-        "Sun": "Purva Phalguni", "Moon": "Rohini", "Mars": "Chitra", 
-        "Mercury": "Magha", "Jupiter": "Rohini", "Venus": "Purva Phalguni", 
-        "Saturn": "Shatabhisha", "Rahu": "Purva Bhadrapada", "Ketu": "Purva Phalguni"
+    # Dynamic Analytical Approximation for Historical/Fallback Dates
+    # Calculations based on elapsed days from Epoch 2000-01-01
+    epoch = datetime.datetime(2000, 1, 1, 12, 0, tzinfo=datetime.timezone.utc)
+    delta_days = (utc_dt - epoch).total_seconds() / 86400.0
+
+    mean_longitudes = {
+        "Sun": (280.460 + 0.9856474 * delta_days) % 360,
+        "Moon": (218.316 + 13.176396 * delta_days) % 360,
+        "Mars": (355.453 + 0.524033 * delta_days) % 360,
+        "Mercury": (252.251 + 4.092334 * delta_days) % 360,
+        "Jupiter": (34.351 + 0.083091 * delta_days) % 360,
+        "Venus": (181.979 + 1.602130 * delta_days) % 360,
+        "Saturn": (50.077 + 0.033459 * delta_days) % 360,
+        "Rahu": (125.045 - 0.05295 * delta_days) % 360,
+        "Ketu": (305.045 - 0.05295 * delta_days) % 360,
     }
 
-    for p_name, nak_name in fallback_naks.items():
+    for p_name, lon in mean_longitudes.items():
         speed = AVERAGE_DAILY_SPEEDS.get(p_name, 1.0)
+        nak_name = get_sbc_nakshatra(lon)
         vedha = calculate_vedha(p_name, nak_name, speed)
         planet_data.append({
-            "Planet": p_name, "Longitude": 0.0, "Speed (°/day)": speed,
+            "Planet": p_name, "Longitude": lon, "Speed (°/day)": speed,
             "Nakshatra": nak_name, "Motion": "Sama (Normal)",
             "Primary Vedha": vedha["Primary Vedha"],
             "Front Target": vedha["Front Target"], "Left Target": vedha["Left Target"],
@@ -245,7 +309,7 @@ def analyze_gold_market(planet_data):
 # -------------------------------------------------------------------
 # 5. SVG + HTML 9x9 GRID RENDERER WITH VARNADIPANCHAK
 # -------------------------------------------------------------------
-def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
+def render_sbc_grid_visual_with_svg(planet_data, selected_planets, current_dt):
     CELL_SIZE = 100
     GRID_DIM = 900
     
@@ -255,7 +319,7 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
 
     for p in planet_data:
         nak = p["Nakshatra"]
-        planet_positions.setdefault(nak, []).append(p["Planet"])
+        planet_positions.setdefault(nak, []).append(p)
 
     for p in planet_data:
         p_name = p["Planet"]
@@ -270,7 +334,7 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
         x1 = src_c * CELL_SIZE + 50
         y1 = src_r * CELL_SIZE + 50
 
-        stroke_color = "#ff4b4b" if p_name in MALEFICS else "#00c853"
+        stroke_color = "#e74c3c" if p_name in MALEFICS else "#2ecc71"
 
         targets = [
             ("Front Target", p.get("Front Target")),
@@ -291,9 +355,9 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                     ("Right" in p["Primary Vedha"] and vedha_type == "Right Target")
                 )
 
-                stroke_width = "4" if is_primary else "1.5"
-                opacity = "0.95" if is_primary else "0.40"
-                dash_array = "none" if is_primary else "6,4"
+                stroke_width = "2.5" if is_primary else "1.2"
+                opacity = "0.85" if is_primary else "0.35"
+                dash_array = "none" if is_primary else "4,4"
 
                 svg_lines.append(
                     f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
@@ -301,31 +365,52 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                     f'stroke-linecap="round" stroke-dasharray="{dash_array}" opacity="{opacity}" />'
                 )
 
+    date_str = current_dt.strftime("%d %b %Y")
+
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        body {{ margin: 0; background-color: #0e1117; color: white; }}
-        .sbc-container {{ position: relative; width: 100%; max-width: 650px; margin: 0 auto; aspect-ratio: 1 / 1; }}
-        .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
-        .sbc-cell-svg {{ border: 1px solid #333; vertical-align: middle; padding: 2px; font-size: 10px; box-sizing: border-box; word-wrap: break-word; }}
-        .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
-        .sbc-inner-varna {{ background-color: #0d131a; color: #8a9ba8; font-size: 9px; font-weight: 500; }}
-        .sbc-center-cell {{ background-color: #161020; color: #d0a0ff; font-weight: bold; }}
-        .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
-        .bg-malefic {{ background-color: #ff4b4b; color: white; }}
-        .bg-benefic {{ background-color: #00c853; color: white; }}
-        .is-target {{ border: 2px solid #ffaa00 !important; background-color: #2a2000 !important; }}
+        body {{ margin: 0; background-color: #1a1715; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+        .sbc-header {{ text-align: center; padding: 8px 0; background-color: #1a1715; color: #f0e6d2; }}
+        .sbc-header h2 {{ margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px; }}
+        .sbc-header .date {{ font-size: 12px; color: #a09585; margin-top: 2px; }}
+        .sbc-card {{ position: relative; width: 100%; max-width: 680px; margin: 0 auto; background: #1f1b18; border: 1px solid #332d28; border-radius: 6px; padding: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }}
+        .sbc-container {{ position: relative; width: 100%; aspect-ratio: 1 / 1; }}
+        .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; }}
+        .sbc-cell-svg {{ border: 1px solid #342e29; vertical-align: middle; padding: 2px; font-size: 11px; box-sizing: border-box; position: relative; }}
+        .sbc-outer-svg {{ background-color: #231e1a; color: #e0d5c5; font-weight: 600; }}
+        .sbc-inner-varna {{ background-color: #181513; color: #d0c4b0; font-size: 11px; font-weight: 500; }}
+        .sbc-rashi-cell {{ background-color: #1c2733; color: #ffffff; font-weight: bold; font-size: 13px; }}
+        .sbc-tithi-cell {{ background-color: #2b241d; color: #f0e0c0; font-weight: 600; font-size: 10px; }}
+        .sbc-badge {{ display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 10px; font-weight: bold; margin: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }}
+        .bg-malefic {{ background-color: #d9534f; color: white; border: 1px solid #ff706b; }}
+        .bg-benefic {{ background-color: #2e7d32; color: white; border: 1px solid #4caf50; }}
+        .is-target {{ border: 2px solid #e67e22 !important; background-color: #332211 !important; }}
+        .dir-label {{ position: absolute; font-size: 10px; font-weight: bold; color: #8c8275; text-transform: uppercase; }}
+        .legend {{ display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 11px; color: #b0a595; }}
+        .legend-item {{ display: flex; align-items: center; gap: 5px; }}
+        .legend-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
     </style>
     </head>
     <body>
-    <div class="sbc-container">
-        <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
-            {''.join(svg_lines)}
-        </svg>
+    <div class="sbc-card">
+        <div class="sbc-header">
+            <h2>Sarvatobhadra Chakra</h2>
+            <div class="date">{date_str}</div>
+        </div>
 
-        <table class="sbc-table-svg">
+        <div style="position: relative;">
+            <!-- Direction Indicators -->
+            <div style="text-align: center; font-size: 10px; font-weight: bold; color: #8c8275; margin-bottom: 3px;">NORTH</div>
+
+            <div class="sbc-container">
+                <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
+                    {''.join(svg_lines)}
+                </svg>
+
+                <table class="sbc-table-svg">
     """
 
     for r in range(9):
@@ -333,26 +418,61 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
         for c in range(9):
             nak_name = GRID_TO_NAKSHATRA.get((r, c), None)
             if nak_name:
+                short_nak = NAK_SHORT_NAMES.get(nak_name, nak_name[:4])
                 is_tgt = nak_name in vedha_targets
                 cell_cls = "sbc-cell-svg sbc-outer-svg" + (" is-target" if is_tgt else "")
                 planets = planet_positions.get(nak_name, [])
                 
-                badges = "".join([f"<span class='sbc-badge {'bg-malefic' if p in MALEFICS else 'bg-benefic'}'>{p}</span>" for p in planets])
+                badges = ""
+                for p_info in planets:
+                    p = p_info["Planet"]
+                    p_disp = p[:2] if p not in ["Rahu", "Ketu"] else ("Ra" if p == "Rahu" else "Ke")
+                    if "Vakra" in p_info["Motion"]:
+                        p_disp += "R"
+                    bg_cls = 'bg-malefic' if p in MALEFICS else 'bg-benefic'
+                    badges += f"<div class='sbc-badge {bg_cls}'>{p_disp}</div>"
 
                 html += f"""
                 <td class='{cell_cls}'>
-                    <div style='font-size: 10px; margin-top: 2px;'>{nak_name}</div>
-                    <div style='margin-top:2px;'>{badges}</div>
+                    <div style='font-size: 10px; color: #f0e6d2; font-weight: bold;'>{short_nak}</div>
+                    <div style='margin-top:1px;'>{badges}</div>
                 </td>
                 """
             else:
-                varna_val = VARNADIPANCHAK_GRID.get((r, c), "")
-                is_center = (r == 4 and c == 4)
-                inner_cls = "sbc-cell-svg sbc-center-cell" if is_center else "sbc-cell-svg sbc-inner-varna"
-                html += f"<td class='{inner_cls}'>{varna_val}</td>"
+                val = VARNADIPANCHAK_GRID.get((r, c), "")
+                # Styling Rashi vs Tithi vs Varna cells
+                if val in ["Aq", "Pi", "Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp"]:
+                    inner_cls = "sbc-cell-svg sbc-rashi-cell"
+                elif "Rikta" in val or "Purna" in val or "Jaya" in val or "Nanda" in val or "Bhadra" in val:
+                    inner_cls = "sbc-cell-svg sbc-tithi-cell"
+                else:
+                    inner_cls = "sbc-cell-svg sbc-inner-varna"
+
+                html += f"<td class='{inner_cls}'>{val}</td>"
         html += "</tr>"
 
-    html += "</table></div></body></html>"
+    html += f"""
+                </table>
+            </div>
+
+            <!-- Direction Labels around perimeter -->
+            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; color: #8c8275; margin-top: 4px;">
+                <span>WEST</span>
+                <span>EAST</span>
+            </div>
+            <div style="text-align: center; font-size: 10px; font-weight: bold; color: #8c8275; margin-top: 2px;">SOUTH</div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span style="border: 1px solid #e67e22; width: 10px; height: 10px; display: inline-block;"></span> Sensitive star</div>
+            <div class="legend-item"><span style="border-top: 1px dashed #888; width: 14px; display: inline-block;"></span> Planet's vedha ray</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #d9534f;"></span> Malefic vedha</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #2e7d32;"></span> Benefic vedha</div>
+        </div>
+    </div>
+    </body>
+    </html>
+    """
     return html
 
 # -------------------------------------------------------------------
@@ -369,20 +489,17 @@ if "selected_planets" not in st.session_state:
     st.session_state.selected_planets = ["Sun", "Jupiter", "Saturn", "Mars", "Rahu", "Ketu"]
 
 st.title("🏆 VyaparRatna SBC Gold Trading Engine")
-st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
+st.caption(f"Sarvatobhadra Chakra Analysis • Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
 
 # -------------------------------------------------------------------
 # 7. SIDEBAR CONTROLS (REFRESH + HISTORICAL VIEW)
 # -------------------------------------------------------------------
 st.sidebar.header("🕹️ Mode & Time Controller")
 
-if st.session_state.mode == "LIVE":
-    st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
-else:
-    st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
-
-if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
+if st.sidebar.button("🔄 Reset to Current Time"):
     st.session_state.mode = "LIVE"
+    if "hist_date" in st.session_state: del st.session_state["hist_date"]
+    if "hist_time" in st.session_state: del st.session_state["hist_time"]
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -390,28 +507,34 @@ st.sidebar.subheader("📅 Date & Time Input")
 
 now_mumbai = datetime.datetime.now(MUMBAI_TZ)
 
-if st.session_state.mode == "LIVE":
-    active_date = now_mumbai.date()
-    active_time = now_mumbai.time()
-else:
-    active_date = st.session_state.get("hist_date", now_mumbai.date())
-    active_time = st.session_state.get("hist_time", now_mumbai.time())
+# Persistent Historical Selection Management
+if "hist_date" not in st.session_state:
+    st.session_state.hist_date = now_mumbai.date()
+if "hist_time" not in st.session_state:
+    st.session_state.hist_time = now_mumbai.time()
 
-selected_date = st.sidebar.date_input("Select Date", active_date)
-selected_time = st.sidebar.time_input("Select Time (IST)", active_time)
+selected_date = st.sidebar.date_input("Select Date", st.session_state.hist_date)
+selected_time = st.sidebar.time_input("Select Time (IST)", st.session_state.hist_time)
 
-combined_input = datetime.datetime.combine(selected_date, selected_time, tzinfo=MUMBAI_TZ)
-time_diff = abs((combined_input - now_mumbai).total_seconds())
-
-if time_diff > 60:
+# Detect user changes to date or time inputs
+if selected_date != st.session_state.hist_date or selected_time != st.session_state.hist_time:
     st.session_state.mode = "HISTORICAL"
     st.session_state.hist_date = selected_date
     st.session_state.hist_time = selected_time
 
-effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
+if st.session_state.mode == "LIVE":
+    st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
+    effective_datetime = datetime.datetime.now(MUMBAI_TZ)
+else:
+    st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
+    effective_datetime = datetime.datetime.combine(
+        st.session_state.hist_date, 
+        st.session_state.hist_time, 
+        tzinfo=MUMBAI_TZ
+    )
 
 # -------------------------------------------------------------------
-# 8. AUTO-REFRESH SCRIPT FOR LIVE MODE
+# 8. AUTO-REFRESH SCRIPT FOR LIVE MODE ONLY
 # -------------------------------------------------------------------
 if st.session_state.mode == "LIVE":
     st.components.v1.html(
@@ -433,7 +556,7 @@ gold = analyze_gold_market(data)
 
 st.info(
     f"**Active Calculation Timestamp:** `{effective_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
-    f"| **Location:** Mumbai, India "
+    f"| **Location:** Reference Location "
     f"| **Refresh State:** {'🟢 Auto-Refresh Active (300s)' if st.session_state.mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
 )
 
@@ -469,7 +592,7 @@ with col_b:
 # Visual SBC Grid with Filter Presets
 st.divider()
 st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
-st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target | 🔤 Inner 7x7 Grid = Varnadipanchak")
+st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Highlight = Active Target | Inner 7x7 Grid = Varnadipanchak & Rashis")
 
 st.write("**Quick Presets:**")
 btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
@@ -497,8 +620,8 @@ selected_planets = st.multiselect(
     key="planet_multiselect_filter"
 )
 
-sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
-st.components.v1.html(sbc_html, height=670, scrolling=False)
+sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets, effective_datetime)
+st.components.v1.html(sbc_html, height=760, scrolling=False)
 
 # Compact Table for Planetary Vedha Details
 st.divider()
