@@ -49,14 +49,8 @@ PLANET_IDS = {
 # 2. ACCURATE NAKSHATRA MAPPING
 # -------------------------------------------------------------------
 def get_sbc_nakshatra(lon: float) -> str:
-    """
-    Standard Lahiri 27-Nakshatra mapping (13°20' per Nakshatra)
-    with Abhijit mapped to 276°40' - 280°53'20" Capricorn.
-    """
-    # Abhijit special span in Capricorn
     if 276.6667 <= lon < 280.8889:
         return "Abhijit"
-    
     idx = int(lon // (360.0 / 27.0))
     return NAKSHATRAS_27[idx % 27]
 
@@ -219,7 +213,72 @@ def analyze_gold_market(planet_data):
     }
 
 # -------------------------------------------------------------------
-# 5. STREAMLIT APP CONFIGURATION & STATE
+# 5. RENDER VISUAL SARVATOBHADRA CHAKRA (9x9 GRID)
+# -------------------------------------------------------------------
+def render_sbc_grid_visual(planet_data):
+    # Map planets to their current Nakshatras
+    planet_positions = {}
+    vedha_targets = set()
+
+    for p in planet_data:
+        nak = p["Nakshatra"]
+        if nak not in planet_positions:
+            planet_positions[nak] = []
+        planet_positions[nak].append(p["Planet"])
+        
+        # Add Vedha target Nakshatras
+        for target in p["All Targets"]:
+            vedha_targets.add(target)
+
+    # Generate 9x9 HTML Table
+    html = """
+    <style>
+        .sbc-table { width: 100%; max-width: 750px; margin: 0 auto; border-collapse: collapse; text-align: center; font-family: sans-serif; }
+        .sbc-cell { border: 1px solid #444; height: 65px; width: 11%; vertical-align: top; padding: 4px; font-size: 11px; position: relative; }
+        .sbc-outer { background-color: #1e2530; color: #fff; font-weight: bold; }
+        .sbc-inner { background-color: #0e1117; color: #666; }
+        .sbc-planet { display: inline-block; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .p-malefic { background-color: #ff4b4b; color: white; }
+        .p-benefic { background-color: #00c853; color: white; }
+        .vedha-target { border: 2px solid #ffaa00 !important; background-color: #3d2b00 !important; }
+        .corner-cell { background-color: #111; }
+    </style>
+    <table class="sbc-table">
+    """
+
+    for r in range(9):
+        html += "<tr>"
+        for c in range(9):
+            nak_name = GRID_TO_NAKSHATRA.get((r, c), None)
+            
+            if nak_name:
+                is_target = nak_name in vedha_targets
+                cell_class = "sbc-cell sbc-outer" + (" vedha-target" if is_target else "")
+                planets_here = planet_positions.get(nak_name, [])
+                
+                planet_badge = ""
+                for p in planets_here:
+                    badge_cls = "p-malefic" if p in MALEFICS else "p-benefic"
+                    planet_badge += f"<span class='sbc-planet {badge_cls}'>{p}</span>"
+
+                html += f"""
+                <td class='{cell_class}'>
+                    <div>{nak_name}</div>
+                    <div style='margin-top:4px;'>{planet_badge}</div>
+                </td>
+                """
+            else:
+                if (r, c) in [(0,0), (0,8), (8,0), (8,8)]:
+                    html += "<td class='sbc-cell corner-cell'></td>"
+                else:
+                    html += "<td class='sbc-cell sbc-inner'></td>"
+        html += "</tr>"
+
+    html += "</table>"
+    return html
+
+# -------------------------------------------------------------------
+# 6. STREAMLIT APP CONFIGURATION & STATE
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
@@ -230,17 +289,15 @@ st.title("🏆 VyaparRatna SBC Gold Trading Engine")
 st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
 
 # -------------------------------------------------------------------
-# 6. SIDEBAR CONTROLS
+# 7. SIDEBAR CONTROLS
 # -------------------------------------------------------------------
 st.sidebar.header("🕹️ Mode & Time Controller")
 
-# Mode status display
 if st.session_state.mode == "LIVE":
     st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
 else:
     st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
 
-# Button to reset to Live Mode
 if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
     st.session_state.mode = "LIVE"
     st.rerun()
@@ -271,7 +328,7 @@ if time_diff > 60:
 effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
 
 # -------------------------------------------------------------------
-# 7. CLIENT-SIDE AUTO-REFRESH (LIVE MODE ONLY)
+# 8. CLIENT-SIDE AUTO-REFRESH (LIVE MODE ONLY)
 # -------------------------------------------------------------------
 if st.session_state.mode == "LIVE":
     st.components.v1.html(
@@ -286,7 +343,7 @@ if st.session_state.mode == "LIVE":
     )
 
 # -------------------------------------------------------------------
-# 8. DASHBOARD RENDER
+# 9. DASHBOARD RENDER
 # -------------------------------------------------------------------
 data = get_ephemeris_data(effective_datetime)
 gold = analyze_gold_market(data)
@@ -326,20 +383,13 @@ with col_b:
     else:
         st.write("No significant malefic Vedha afflicting Gold significators.")
 
-# Planetary Vedha Table
+# Visual SBC Grid (Replaces tabular dataframe)
 st.divider()
-st.subheader("🪐 Planetary Positions & Vedha Paths")
-st.dataframe(
-    data,
-    column_config={
-        "Planet": "Planet",
-        "Longitude_str": "Sidereal Degree",
-        "Nakshatra": "Host Nakshatra",
-        "Motion": st.column_config.TextColumn("Motion State", help="Vakra, Atichara, Manda, or Sama"),
-        "Primary Vedha": st.column_config.TextColumn("Active Primary Vedha", help="Shifted by planetary speed/motion"),
-    },
-    use_container_width=True
-)
+st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
+st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target")
+
+sbc_html = render_sbc_grid_visual(data)
+st.markdown(sbc_html, unsafe_allow_html=True)
 
 # Detailed Cards
 st.divider()
