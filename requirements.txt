@@ -4,3 +4,7 @@ numpy
 plotly
 pyswisseph
 yfinance
+streamlit
+pandas
+matplotlib
+reportlab
