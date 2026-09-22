@@ -4,15 +4,18 @@ import zoneinfo
 import swisseph as swe
 
 # -------------------------------------------------------------------
-# 1. CONSTANTS & SBC GRID CONFIGURATION
+# 1. CONSTANTS & CONFIGURATION
 # -------------------------------------------------------------------
 MUMBAI_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
+MUMBAI_LAT = 19.0760
+MUMBAI_LON = 72.8777
 
-NAKSHATRAS_28 = [
-    "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya", "Ashlesha",
-    "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Svati", "Vishakha",
-    "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha", "Uttara Ashadha", "Abhijit", "Shravana",
-    "Dhanishta", "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati", "Ashwini", "Bharani"
+NAKSHATRAS_27 = [
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+    "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+    "Hasta", "Chitra", "Svati", "Vishakha", "Anuradha", "Jyeshtha",
+    "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta",
+    "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
 ]
 
 AVERAGE_DAILY_SPEEDS = {
@@ -43,7 +46,22 @@ PLANET_IDS = {
 }
 
 # -------------------------------------------------------------------
-# 2. HELPER FUNCTIONS: CALCULATION & VEDHA LOGIC
+# 2. ACCURATE NAKSHATRA MAPPING
+# -------------------------------------------------------------------
+def get_sbc_nakshatra(lon: float) -> str:
+    """
+    Standard Lahiri 27-Nakshatra mapping (13°20' per Nakshatra)
+    with Abhijit mapped to 276°40' - 280°53'20" Capricorn.
+    """
+    # Abhijit special span in Capricorn
+    if 276.6667 <= lon < 280.8889:
+        return "Abhijit"
+    
+    idx = int(lon // (360.0 / 27.0))
+    return NAKSHATRAS_27[idx % 27]
+
+# -------------------------------------------------------------------
+# 3. VEDHA & MOTION CALCULATION LOGIC
 # -------------------------------------------------------------------
 def get_motion_status(planet: str, speed: float) -> str:
     if planet in ["Rahu", "Ketu"]:
@@ -112,15 +130,14 @@ def get_ephemeris_data(dt: datetime.datetime):
     for p_name, p_id in PLANET_IDS.items():
         flags = swe.FLG_SWIEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
         res, _ = swe.calc_ut(julian_day, p_id, flags)
-        lon = res[0]
+        lon = res[0] % 360
         speed = res[3]
 
         if p_name == "Ketu":
             lon = (lon + 180) % 360
             speed = -speed
 
-        nak_idx = int(lon // (360 / 28))
-        nak_name = NAKSHATRAS_28[nak_idx % 28]
+        nak_name = get_sbc_nakshatra(lon)
         vedha = calculate_vedha(p_name, nak_name, speed)
 
         planet_data.append({
@@ -140,7 +157,7 @@ def get_ephemeris_data(dt: datetime.datetime):
     return planet_data
 
 # -------------------------------------------------------------------
-# 3. GOLD TRADING ANALYSIS ENGINE
+# 4. GOLD TRADING ANALYSIS ENGINE
 # -------------------------------------------------------------------
 def analyze_gold_market(planet_data):
     p_map = {p["Planet"]: p for p in planet_data}
@@ -202,7 +219,7 @@ def analyze_gold_market(planet_data):
     }
 
 # -------------------------------------------------------------------
-# 4. STREAMLIT APP CONFIGURATION & STATE
+# 5. STREAMLIT APP CONFIGURATION & STATE
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
@@ -210,10 +227,10 @@ if "mode" not in st.session_state:
     st.session_state.mode = "LIVE"
 
 st.title("🏆 VyaparRatna SBC Gold Trading Engine")
-st.caption("Sarvatobhadra Chakra Analysis • Mumbai Reference Location (19.0760° N, 72.8777° E)")
+st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
 
 # -------------------------------------------------------------------
-# 5. SIDEBAR: TIME & MODE CONTROL
+# 6. SIDEBAR CONTROLS
 # -------------------------------------------------------------------
 st.sidebar.header("🕹️ Mode & Time Controller")
 
@@ -225,7 +242,6 @@ else:
 
 # Button to reset to Live Mode
 if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
-    st.session_state.mode = "HISTORICAL"  # force toggle reset
     st.session_state.mode = "LIVE"
     st.rerun()
 
@@ -255,10 +271,9 @@ if time_diff > 60:
 effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
 
 # -------------------------------------------------------------------
-# 6. HARD BROWSER AUTO-REFRESH (JAVASCRIPT METATAG INJECTION)
+# 7. CLIENT-SIDE AUTO-REFRESH (LIVE MODE ONLY)
 # -------------------------------------------------------------------
 if st.session_state.mode == "LIVE":
-    # Forces the browser to hard-reload the page every 300 seconds (5 minutes)
     st.components.v1.html(
         """
         <script>
@@ -271,7 +286,7 @@ if st.session_state.mode == "LIVE":
     )
 
 # -------------------------------------------------------------------
-# 7. DASHBOARD RENDER
+# 8. DASHBOARD RENDER
 # -------------------------------------------------------------------
 data = get_ephemeris_data(effective_datetime)
 gold = analyze_gold_market(data)
