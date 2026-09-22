@@ -416,45 +416,44 @@ if st.session_state.mode == "LIVE":
     )
 
 # -------------------------------------------------------------------
-# 9. DASHBOARD RENDER
+# 9. DASHBOARD RENDER - COMPACT TABLE
 # -------------------------------------------------------------------
-data = get_ephemeris_data(effective_datetime)
-gold = analyze_gold_market(data)
-
-st.info(
-    f"**Active Calculation Timestamp:** `{effective_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
-    f"| **Location:** Mumbai, India "
-    f"| **Refresh State:** {'🟢 Auto-Refresh Active (300s)' if st.session_state.mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
-)
-
-# Metrics
 st.divider()
-st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
-g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
+st.subheader("🔍 Planetary Vedha Details")
 
-with g_col1:
-    st.metric("Gold Market Signal", gold["Signal"])
-with g_col2:
-    st.metric("Market Bias", gold["Bias"])
-with g_col3:
-    st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
+# Convert ephemeris list to Pandas DataFrame for a compact tabular display
+import pandas as pd
 
-col_a, col_b = st.columns(2)
-with col_a:
-    st.success("🟢 **Bullish Factors**")
-    if gold["Bullish Factors"]:
-        for factor in gold["Bullish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No strong bullish SBC factors present.")
+table_data = []
+for p in data:
+    table_data.append({
+        "Planet": p["Planet"],
+        "Nakshatra": p["Nakshatra"],
+        "Speed (°/d)": f"{p['Speed (°/day)']:.4f}",
+        "Motion": p["Motion"],
+        "Primary Aspect": p["Primary Vedha"],
+        "🎯 Front Vedha": p["Front Target"] if p["Front Target"] else "-",
+        "⬅️ Left Vedha": p["Left Target"] if p["Left Target"] else "-",
+        "➡️ Right Vedha": p["Right Target"] if p["Right Target"] else "-"
+    })
 
-with col_b:
-    st.error("🔴 **Bearish / Risk Factors**")
-    if gold["Bearish Factors"]:
-        for factor in gold["Bearish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No significant malefic Vedha afflicting Gold significators.")
+df_vedha = pd.DataFrame(table_data)
+
+st.dataframe(
+    df_vedha,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Planet": st.column_config.TextColumn("Planet", width="small"),
+        "Nakshatra": st.column_config.TextColumn("Nakshatra", width="medium"),
+        "Speed (°/d)": st.column_config.TextColumn("Speed (°/d)", width="small"),
+        "Motion": st.column_config.TextColumn("Motion", width="medium"),
+        "Primary Aspect": st.column_config.TextColumn("Primary Aspect", width="medium"),
+        "🎯 Front Vedha": st.column_config.TextColumn("🎯 Front Vedha", width="medium"),
+        "⬅️ Left Vedha": st.column_config.TextColumn("⬅️ Left Vedha", width="medium"),
+        "➡️ Right Vedha": st.column_config.TextColumn("➡️ Right Vedha", width="medium"),
+    }
+)
 
 # Visual SBC Grid with Filter Presets
 st.divider()
