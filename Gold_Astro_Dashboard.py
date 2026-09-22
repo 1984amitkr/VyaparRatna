@@ -21,7 +21,7 @@ except ImportError:
 
 # --- STREAMLIT PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Vyapar Ratna - Gold Astro Engine V4",
+    page_title="Vyapar Ratna - Gold Astro Engine V5",
     page_icon="🪙",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -99,6 +99,30 @@ VEDHA_PAIRS = {
 PLANET_WEIGHTS = {
     "Sun": 1.5, "Moon": 0.8, "Mercury": 1.0, "Venus": 1.2,
     "Mars": 2.5, "Jupiter": 2.0, "Saturn": -2.5, "Rahu": -1.8, "Ketu": -1.2
+}
+
+# --- SARVATOBHADRA CHAKRA 9x9 MATRIX DEFINITION ---
+SBC_GRID = [
+    ["Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni"],
+    ["Bharani", "A", "Aa", "I", "Ee", "U", "Uu", "R", "Uttara Phalguni"],
+    ["Ashwini", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya", "Tula", "Vrishchika", "Hasta"],
+    ["Revati", "K", "Kh", "G", "Gh", "Ch", "Chh", "J", "Chitra"],
+    ["Uttara Bhadrapada", "Jh", "T", "Th", "CENTRAL ENGINE", "D", "Dh", "N", "Swati"],
+    ["Purva Bhadrapada", "Ta", "Tha", "Da", "Dha", "Na", "Pa", "P", "Vishakha"],
+    ["Shatabhisha", "Dhanu", "Makara", "Kumbha", "Meena", "Mesha", "Vrishabha", "Mithuna", "Anuradha"],
+    ["Dhanishta", "L", "V", "Sh", "S", "H", "Ksh", "Tr", "Jyeshtha"],
+    ["Shravana", "Abhijit", "Uttara Ashadha", "Purva Ashadha", "Mula", "Nirriti", "Vyatipata", "Vaidhriti", "Ketu-P"]
+]
+
+# Mapping of 28 Nakshatras (including Abhijit) to 9x9 coordinates
+SBC_NAKSHATRA_POSITIONS = {
+    "Krittika": (0, 0), "Rohini": (0, 1), "Mrigashira": (0, 2), "Ardra": (0, 3),
+    "Punarvasu": (0, 4), "Pushya": (0, 5), "Ashlesha": (0, 6), "Magha": (0, 7),
+    "Purva Phalguni": (0, 8), "Uttara Phalguni": (1, 8), "Hasta": (2, 8), "Chitra": (3, 8),
+    "Swati": (4, 8), "Vishakha": (5, 8), "Anuradha": (6, 8), "Jyeshtha": (7, 8),
+    "Mula": (8, 4), "Purva Ashadha": (8, 3), "Uttara Ashadha": (8, 2), "Abhijit": (8, 1),
+    "Shravana": (8, 0), "Dhanishta": (7, 0), "Shatabhisha": (6, 0), "Purva Bhadrapada": (5, 0),
+    "Uttara Bhadrapada": (4, 0), "Revati": (3, 0), "Ashwini": (2, 0), "Bharani": (1, 0)
 }
 
 # --- CACHED ASTRONOMICAL ENGINE ---
@@ -375,6 +399,67 @@ def render_realtime_ephemeris_chart(positions, aspects):
 
     return fig
 
+# --- SARVATOBHADRA CHAKRA GRID RENDERING ---
+def render_sarvatobhadra_chakra(positions):
+    grid_data = np.full((9, 9), "", dtype=object)
+    
+    # Map Nakshatra occupy state
+    nak_occupants = {}
+    for p_name, p_data in positions.items():
+        nak = p_data["nakshatra"]
+        retro = " (R)" if p_data["is_retrograde"] else ""
+        text = f"{p_name}{retro}"
+        if nak in nak_occupants:
+            nak_occupants[nak] += f", {text}"
+        else:
+            nak_occupants[nak] = text
+
+    # Populate Grid Strings
+    for r in range(9):
+        for c in range(9):
+            base_val = SBC_GRID[r][c]
+            if base_val in nak_occupants:
+                grid_data[r][c] = f"<b>{base_val}</b><br><span style='color:#FFD700;'>[{nak_occupants[base_val]}]</span>"
+            else:
+                grid_data[r][c] = f"{base_val}"
+
+    fig = go.Figure()
+
+    # Base Heatmap Grid
+    z_colors = np.zeros((9, 9))
+    # Border cells (Nakshatras) styled differently from inner vowels/consonants
+    for r in range(9):
+        for c in range(9):
+            if r in [0, 8] or c in [0, 8]:
+                z_colors[r][c] = 1
+            elif r in [1, 7] or c in [1, 7]:
+                z_colors[r][c] = 0.6
+            else:
+                z_colors[r][c] = 0.2
+
+    fig.add_trace(go.Heatmap(
+        z=z_colors,
+        text=grid_data,
+        texttemplate="%{text}",
+        textfont={"size": 10, "color": "#F8FAFC"},
+        colorscale=[[0, "#1E293B"], [0.5, "#334155"], [1.0, "#0F172A"]],
+        showscale=False,
+        hoverinfo="none"
+    ))
+
+    fig.update_layout(
+        title="<b>Sarvatobhadra Chakra (9x9 Transit Map)</b>",
+        title_font=dict(size=16, color="#FFD700"),
+        height=650,
+        margin=dict(l=20, r=20, t=50, b=20),
+        xaxis=dict(showgrid=True, zeroline=False, showticklabels=False, ticks=""),
+        yaxis=dict(showgrid=True, zeroline=False, showticklabels=False, ticks="", autorange="reversed"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
+
+    return fig
+
 # --- SIDEBAR INTERFACE & AUTO-REFRESH CONTROLS ---
 st.sidebar.title("🪐 Controls")
 st.sidebar.markdown("---")
@@ -387,10 +472,9 @@ def set_current_time():
 if "calc_date" not in st.session_state or "calc_time" not in st.session_state:
     set_current_time()
 
-# Real-time Auto-Refresh Logic
 st.sidebar.subheader("🔄 Real-Time Auto-Refresh")
 auto_refresh = st.sidebar.checkbox("Enable Live Refresh", value=True)
-refresh_interval = st.sidebar.slider("Refresh Every (minutes)", min_value=5, max_value=60, value=15)
+refresh_interval = st.sidebar.slider("Refresh Every (seconds)", min_value=5, max_value=60, value=15)
 
 if auto_refresh:
     now = datetime.datetime.now()
@@ -398,7 +482,7 @@ if auto_refresh:
     st.session_state["calc_time"] = now.time()
 
     if HAS_AUTOREFRESH:
-        st_autorefresh(interval=refresh_interval * 1, key="gold_astro_refresher")
+        st_autorefresh(interval=refresh_interval * 1000, key="gold_astro_refresher")
     else:
         time.sleep(refresh_interval)
         st.rerun()
@@ -458,7 +542,12 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-tab1, tab2, tab3 = st.tabs(["📌 Planetary Positions", "⚡ Active Aspects & Drishti", "🛑 Active Vedha"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📌 Planetary Positions",
+    "☸️ Sarvatobhadra Chakra",
+    "⚡ Active Aspects & Drishti",
+    "🛑 Active Vedha"
+])
 
 with tab1:
     pos_df = [{
@@ -469,12 +558,17 @@ with tab1:
     st.dataframe(pd.DataFrame(pos_df), hide_index=True, use_container_width=True)
 
 with tab2:
+    st.markdown("##### Dynamic Sarvatobhadra Chakra Matrix")
+    sbc_fig = render_sarvatobhadra_chakra(positions)
+    st.plotly_chart(sbc_fig, use_container_width=True)
+
+with tab3:
     if aspects:
         st.dataframe(pd.DataFrame(aspects)[["P1", "P2", "Aspect", "Weight"]], hide_index=True, use_container_width=True)
     else:
         st.write("No major planetary aspects active for this timestamp.")
 
-with tab3:
+with tab4:
     if vedhas:
         st.dataframe(pd.DataFrame(vedhas)[["Obstructing Planet", "Target Planet", "Target Nakshatra", "Score Impact"]], hide_index=True, use_container_width=True)
     else:
