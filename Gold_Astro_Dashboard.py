@@ -153,7 +153,7 @@ def get_ephemeris_data(dt: datetime.datetime):
         except Exception:
             pass
 
-    # Fallback positioning system if swisseph fails on server
+    # Standard Fallback Positions
     fallback_naks = {
         "Sun": "Purva Phalguni", "Moon": "Rohini", "Mars": "Chitra", 
         "Mercury": "Magha", "Jupiter": "Rohini", "Venus": "Purva Phalguni", 
@@ -269,22 +269,28 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                 )
 
     html = f"""
-    <div style="position: relative; width: 100%; max-width: 750px; margin: 0 auto; aspect-ratio: 1 / 1;">
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        body {{ margin: 0; background-color: #0e1117; color: white; }}
+        .sbc-container {{ position: relative; width: 100%; max-width: 650px; margin: 0 auto; aspect-ratio: 1 / 1; }}
+        .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
+        .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; box-sizing: border-box; }}
+        .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
+        .sbc-inner-svg {{ background-color: #0d0f12; color: #444; }}
+        .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
+        .bg-malefic {{ background-color: #ff4b4b; color: white; }}
+        .bg-benefic {{ background-color: #00c853; color: white; }}
+        .is-target {{ border: 2px solid #ffaa00 !important; background-color: #2a2000 !important; }}
+    </style>
+    </head>
+    <body>
+    <div class="sbc-container">
         <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
             {''.join(svg_lines)}
         </svg>
 
-        <style>
-            .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
-            .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; box-sizing: border-box; }}
-            .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
-            .sbc-inner-svg {{ background-color: #0d0f12; color: #444; }}
-            .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
-            .bg-malefic {{ background-color: #ff4b4b; color: white; }}
-            .bg-benefic {{ background-color: #00c853; color: white; }}
-            .is-target {{ border: 2px solid #ffaa00 !important; background-color: #2a2000 !important; }}
-        </style>
-        
         <table class="sbc-table-svg">
     """
 
@@ -309,11 +315,11 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                 html += "<td class='sbc-cell-svg sbc-inner-svg'></td>"
         html += "</tr>"
 
-    html += "</table></div>"
+    html += "</table></div></body></html>"
     return html
 
 # -------------------------------------------------------------------
-# 6. STREAMLIT APP & UI
+# 6. STREAMLIT APP CONFIGURATION & STATE
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
@@ -328,10 +334,73 @@ if "selected_planets" not in st.session_state:
 st.title("🏆 VyaparRatna SBC Gold Trading Engine")
 st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
 
+# -------------------------------------------------------------------
+# 7. SIDEBAR CONTROLS (REFRESH + HISTORICAL VIEW)
+# -------------------------------------------------------------------
+st.sidebar.header("🕹️ Mode & Time Controller")
+
+if st.session_state.mode == "LIVE":
+    st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
+else:
+    st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
+
+if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
+    st.session_state.mode = "LIVE"
+    st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📅 Date & Time Input")
+
 now_mumbai = datetime.datetime.now(MUMBAI_TZ)
-data = get_ephemeris_data(now_mumbai)
+
+if st.session_state.mode == "LIVE":
+    active_date = now_mumbai.date()
+    active_time = now_mumbai.time()
+else:
+    active_date = st.session_state.get("hist_date", now_mumbai.date())
+    active_time = st.session_state.get("hist_time", now_mumbai.time())
+
+selected_date = st.sidebar.date_input("Select Date", active_date)
+selected_time = st.sidebar.time_input("Select Time (IST)", active_time)
+
+combined_input = datetime.datetime.combine(selected_date, selected_time, tzinfo=MUMBAI_TZ)
+time_diff = abs((combined_input - now_mumbai).total_seconds())
+
+if time_diff > 60:
+    st.session_state.mode = "HISTORICAL"
+    st.session_state.hist_date = selected_date
+    st.session_state.hist_time = selected_time
+
+effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
+
+# -------------------------------------------------------------------
+# 8. AUTO-REFRESH SCRIPT FOR LIVE MODE
+# -------------------------------------------------------------------
+if st.session_state.mode == "LIVE":
+    st.components.v1.html(
+        """
+        <script>
+            setTimeout(function(){
+                window.parent.location.reload();
+            }, 300000);
+        </script>
+        """,
+        height=0
+    )
+
+# -------------------------------------------------------------------
+# 9. DASHBOARD RENDER
+# -------------------------------------------------------------------
+data = get_ephemeris_data(effective_datetime)
 gold = analyze_gold_market(data)
 
+st.info(
+    f"**Active Calculation Timestamp:** `{effective_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
+    f"| **Location:** Mumbai, India "
+    f"| **Refresh State:** {'🟢 Auto-Refresh Active (300s)' if st.session_state.mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
+)
+
+# Metrics
 st.divider()
 st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
 g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
@@ -343,10 +412,46 @@ with g_col2:
 with g_col3:
     st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
 
-# Grid Section
+col_a, col_b = st.columns(2)
+with col_a:
+    st.success("🟢 **Bullish Factors**")
+    if gold["Bullish Factors"]:
+        for factor in gold["Bullish Factors"]:
+            st.write(f"- {factor}")
+    else:
+        st.write("No strong bullish SBC factors present.")
+
+with col_b:
+    st.error("🔴 **Bearish / Risk Factors**")
+    if gold["Bearish Factors"]:
+        for factor in gold["Bearish Factors"]:
+            st.write(f"- {factor}")
+    else:
+        st.write("No significant malefic Vedha afflicting Gold significators.")
+
+# Visual SBC Grid with Filter Presets
 st.divider()
 st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
 st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target")
+
+st.write("**Quick Presets:**")
+btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
+
+if btn_c1.button("Show All Planets"):
+    st.session_state.selected_planets = all_planets.copy()
+    st.rerun()
+
+if btn_c2.button("Malefics Only"):
+    st.session_state.selected_planets = MALEFICS.copy()
+    st.rerun()
+
+if btn_c3.button("Benefics Only"):
+    st.session_state.selected_planets = BENEFICS.copy()
+    st.rerun()
+
+if btn_c4.button("Gold Key Movers"):
+    st.session_state.selected_planets = ["Sun", "Jupiter", "Saturn", "Mars"]
+    st.rerun()
 
 selected_planets = st.multiselect(
     "Filter SVG Vedha Rays by Planet:",
@@ -355,5 +460,22 @@ selected_planets = st.multiselect(
     key="planet_multiselect_filter"
 )
 
+# FIXED: Render via isolated HTML Component to prevent text exposure
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
-st.markdown(sbc_html, unsafe_allow_html=True)
+st.components.v1.html(sbc_html, height=670, scrolling=False)
+
+# Detailed Cards
+st.divider()
+st.subheader("🔍 Planetary Vedha Details")
+cols = st.columns(3)
+for idx, p in enumerate(data):
+    with cols[idx % 3]:
+        with st.container(border=True):
+            st.markdown(f"### {p['Planet']}")
+            st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
+            st.write(f"**Motion:** `{p['Motion']}`")
+            st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
+            st.markdown("---")
+            st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
+            st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
+            st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
