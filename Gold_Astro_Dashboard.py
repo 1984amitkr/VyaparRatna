@@ -508,7 +508,7 @@ st.markdown("""
     .panchang-title { font-weight: bold; font-size: 0.85rem; color: #58a6ff; margin-bottom: 4px; }
     .panchang-val { font-size: 0.8rem; color: #c9d1d9; }
 </style>
-""", unsafe_allow_cookies=True)
+""", unsafe_allow_html=True)
 
 all_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
 
