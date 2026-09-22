@@ -3,6 +3,14 @@ import pandas as pd
 import datetime
 import numpy as np
 import plotly.graph_objects as go
+import time
+
+# Optional import for smooth auto-refresh without thread blocking
+try:
+    from streamlit_autorefresh import st_autorefresh
+    HAS_AUTOREFRESH = True
+except ImportError:
+    HAS_AUTOREFRESH = False
 
 # Try importing Swiss Ephemeris for precise Geocentric Sidereal calculations
 try:
@@ -19,15 +27,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM AESTHETICS (CSS STYLING) ---
+# --- CUSTOM AESTHETICS (DARK MODE & METRICS) ---
 st.markdown("""
     <style>
-        /* Main background & typography adjustments */
         .stApp {
             background-color: #0F172A;
             color: #F8FAFC;
         }
-        /* Custom metric card styling */
         div[data-testid="stMetric"] {
             background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
             border: 1px solid rgba(255, 215, 0, 0.2);
@@ -44,12 +50,10 @@ st.markdown("""
             color: #FFD700 !important;
             font-weight: 700;
         }
-        /* Sidebar styling */
         section[data-testid="stSidebar"] {
             background-color: #1E293B;
             border-right: 1px solid rgba(255, 215, 0, 0.1);
         }
-        /* Primary button styling */
         .stButton>button {
             width: 100%;
             background: linear-gradient(90deg, #D97706 0%, #B45309 100%);
@@ -67,7 +71,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- MUMBAI LOCATION & GEOCENTRIC CONSTANTS ---
+# --- MUMBAI LOCATION & ASTROLOGICAL CONSTANTS ---
 MUMBAI_LAT = 18.9220
 MUMBAI_LON = 72.8347
 MUMBAI_ELEV = 14.0
@@ -97,9 +101,8 @@ PLANET_WEIGHTS = {
     "Mars": 2.5, "Jupiter": 2.0, "Saturn": -2.5, "Rahu": -1.8, "Ketu": -1.2
 }
 
-
 # --- CACHED ASTRONOMICAL ENGINE ---
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=5, show_spinner=False)
 def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date: datetime.date, calc_time: datetime.time):
     dt = datetime.datetime.combine(calc_date, calc_time)
     utc_dt = dt - datetime.timedelta(hours=5, minutes=30)
@@ -200,7 +203,6 @@ def calculate_mumbai_geocentric_sidereal_ephemeris(calc_date: datetime.date, cal
 
     return positions
 
-
 # --- ASPECTS & VEDHA CALCULATIONS ---
 def calculate_aspects(positions):
     aspects = []
@@ -254,7 +256,6 @@ def calculate_aspects(positions):
                 
     return aspects
 
-
 def calculate_vedha(positions):
     vedha_events = []
     malefics = ["Saturn", "Mars", "Rahu", "Ketu", "Sun"]
@@ -278,12 +279,10 @@ def calculate_vedha(positions):
                 
     return vedha_events
 
-
-# --- ENHANCED HIGH-AESTHETIC ANGLE WHEEL PLOT ---
+# --- POLAR CHART RENDERING ---
 def render_realtime_ephemeris_chart(positions, aspects):
     fig = go.Figure()
 
-    # Outer Degree Ticks
     for deg in range(0, 360, 10):
         is_major = (deg % 30 == 0)
         r_inner = 9.6 if is_major else 9.85
@@ -301,7 +300,6 @@ def render_realtime_ephemeris_chart(positions, aspects):
             textfont=dict(size=8, color="#94A3B8"), showlegend=False, hoverinfo="none"
         ))
 
-    # Zodiac Sectors
     for i, sign in enumerate(ZODIAC_SIGNS):
         angle = i * 30
         fig.add_trace(go.Scatterpolar(
@@ -313,7 +311,6 @@ def render_realtime_ephemeris_chart(positions, aspects):
             textfont=dict(size=10, color="#F59E0B", family="Sans-serif"), showlegend=False, hoverinfo="none"
         ))
 
-    # Radial Aspect Lines
     aspect_colors = {
         "Conjunction (0°)": "rgba(34, 197, 94, 0.6)",
         "Opposition (180°)": "rgba(239, 68, 68, 0.6)",
@@ -336,7 +333,6 @@ def render_realtime_ephemeris_chart(positions, aspects):
             name=f"{p1} - {p2} ({asp['Aspect']})", hoverinfo="name"
         ))
 
-    # Planets
     planet_colors = {
         "Sun": "#FFD700", "Moon": "#E2E8F0", "Mercury": "#4ADE80",
         "Venus": "#F472B6", "Mars": "#EF4444", "Jupiter": "#F59E0B",
@@ -379,8 +375,7 @@ def render_realtime_ephemeris_chart(positions, aspects):
 
     return fig
 
-
-# --- SIDEBAR INTERFACE ---
+# --- SIDEBAR INTERFACE & AUTO-REFRESH CONTROLS ---
 st.sidebar.title("🪐 Controls")
 st.sidebar.markdown("---")
 
@@ -389,10 +384,26 @@ def set_current_time():
     st.session_state["calc_date"] = now.date()
     st.session_state["calc_time"] = now.time()
 
-if "calc_date" not in st.session_state:
+if "calc_date" not in st.session_state or "calc_time" not in st.session_state:
     set_current_time()
 
-st.sidebar.button("📅 Go to Current Date & Time", on_click=set_current_time)
+# Real-time Auto-Refresh Logic
+st.sidebar.subheader("🔄 Real-Time Auto-Refresh")
+auto_refresh = st.sidebar.checkbox("Enable Live Refresh", value=True)
+refresh_interval = st.sidebar.slider("Refresh Every (seconds)", min_value=5, max_value=60, value=15)
+
+if auto_refresh:
+    now = datetime.datetime.now()
+    st.session_state["calc_date"] = now.date()
+    st.session_state["calc_time"] = now.time()
+
+    if HAS_AUTOREFRESH:
+        st_autorefresh(interval=refresh_interval * 1000, key="gold_astro_refresher")
+    else:
+        time.sleep(refresh_interval)
+        st.rerun()
+
+st.sidebar.button("📅 Sync to Current Time", on_click=set_current_time)
 
 calc_date = st.sidebar.date_input("Evaluation Date", key="calc_date")
 calc_time = st.sidebar.time_input("Evaluation Time (IST)", key="calc_time")
@@ -403,12 +414,10 @@ if HAS_SWISSEPH:
 else:
     st.sidebar.warning("Engine: Fallback Pure-Python Sidereal")
 
-
-# --- DASHBOARD CONTENT ---
+# --- MAIN DASHBOARD CONTENT ---
 st.title("🪙 Vyapar Ratna Gold Astro Engine")
 st.caption("📍 Mumbai, IN (18.9220° N, 72.8347° E) | Mode: Geocentric Sidereal (Lahiri) | Timezone: IST (UTC+5:30)")
 
-# Ephemeris Computations
 positions = calculate_mumbai_geocentric_sidereal_ephemeris(calc_date, calc_time)
 aspects = calculate_aspects(positions)
 vedhas = calculate_vedha(positions)
@@ -421,7 +430,6 @@ aspect_score = sum([a["Weight"] for a in aspects])
 vedha_score = sum([v["Score Impact"] for v in vedhas])
 total_score = base_score + aspect_score + vedha_score
 
-# Market Bias
 if total_score >= 7.0:
     regime, color, action = "STRONG BULLISH REGIME", "#22C55E", "LONG TRADES PERMITTED — Confirm with Technical Breakout"
 elif 3.0 <= total_score < 7.0:
@@ -433,7 +441,6 @@ elif -7.0 < total_score <= -3.0:
 else:
     regime, color, action = "STRONG BEARISH REGIME", "#EF4444", "SHORT TRADES PERMITTED — Confirm with Technical Breakdown"
 
-# Top Metrics Row
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Composite Astro Score", f"{total_score:+.2f}")
 m2.metric("Base Placement", f"{base_score:+.2f}")
@@ -445,14 +452,12 @@ st.info(f"**Execution Directive:** {action}")
 
 st.divider()
 
-# Interactive Angle Wheel Visual
 st.subheader("🪐 Geocentric Sidereal Angle Wheel & Ephemeris Map")
 fig = render_realtime_ephemeris_chart(positions, aspects)
 st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# Tabbed Data Display
 tab1, tab2, tab3 = st.tabs(["📌 Planetary Positions", "⚡ Active Aspects & Drishti", "🛑 Active Vedha"])
 
 with tab1:
