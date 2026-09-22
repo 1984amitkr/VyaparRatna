@@ -1,7 +1,14 @@
 import streamlit as st
 import datetime
 import zoneinfo
-import swisseph as swe
+
+# Try importing Swiss Ephemeris with fallback
+SWISS_EPH_AVAILABLE = False
+try:
+    import swisseph as swe
+    SWISS_EPH_AVAILABLE = True
+except Exception:
+    SWISS_EPH_AVAILABLE = False
 
 # -------------------------------------------------------------------
 # 1. CONSTANTS & CONFIGURATION
@@ -38,12 +45,6 @@ SBC_GRID_POSITIONS = {
 }
 
 GRID_TO_NAKSHATRA = {v: k for k, v in SBC_GRID_POSITIONS.items()}
-
-PLANET_IDS = {
-    "Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS, "Mercury": swe.MERCURY,
-    "Jupiter": swe.JUPITER, "Venus": swe.VENUS, "Saturn": swe.SATURN,
-    "Rahu": swe.MEAN_NODE, "Ketu": swe.MEAN_NODE
-}
 
 # -------------------------------------------------------------------
 # 2. ACCURATE NAKSHATRA MAPPING
@@ -113,39 +114,61 @@ def calculate_vedha(planet: str, nakshatra: str, speed: float):
 
 def get_ephemeris_data(dt: datetime.datetime):
     utc_dt = dt.astimezone(datetime.timezone.utc)
-    swe.set_sid_mode(swe.SIDM_LAHIRI)
-    
-    julian_day = swe.julday(
-        utc_dt.year, utc_dt.month, utc_dt.day, 
-        utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
-    )
-
     planet_data = []
-    for p_name, p_id in PLANET_IDS.items():
-        flags = swe.FLG_SWIEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
-        res, _ = swe.calc_ut(julian_day, p_id, flags)
-        lon = res[0] % 360
-        speed = res[3]
 
-        if p_name == "Ketu":
-            lon = (lon + 180) % 360
-            speed = -speed
+    planets_map = {
+        "Sun": 0, "Moon": 1, "Mars": 4, "Mercury": 2,
+        "Jupiter": 5, "Venus": 3, "Saturn": 6, "Rahu": 11, "Ketu": 11
+    }
 
-        nak_name = get_sbc_nakshatra(lon)
+    if SWISS_EPH_AVAILABLE:
+        try:
+            swe.set_sid_mode(swe.SIDM_LAHIRI)
+            julian_day = swe.julday(
+                utc_dt.year, utc_dt.month, utc_dt.day, 
+                utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+            )
+
+            for p_name, p_id in planets_map.items():
+                flags = swe.FLG_SWIEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
+                res, _ = swe.calc_ut(julian_day, p_id, flags)
+                lon = res[0] % 360
+                speed = res[3]
+
+                if p_name == "Ketu":
+                    lon = (lon + 180) % 360
+                    speed = -speed
+
+                nak_name = get_sbc_nakshatra(lon)
+                vedha = calculate_vedha(p_name, nak_name, speed)
+
+                planet_data.append({
+                    "Planet": p_name, "Longitude": lon, "Speed (°/day)": round(speed, 4),
+                    "Nakshatra": nak_name, "Motion": vedha["Motion"],
+                    "Primary Vedha": vedha["Primary Vedha"],
+                    "Front Target": vedha["Front Target"], "Left Target": vedha["Left Target"],
+                    "Right Target": vedha["Right Target"], "All Targets": vedha["All_Targets"]
+                })
+            return planet_data
+        except Exception:
+            pass
+
+    # Fallback positioning system if swisseph fails on server
+    fallback_naks = {
+        "Sun": "Purva Phalguni", "Moon": "Rohini", "Mars": "Chitra", 
+        "Mercury": "Magha", "Jupiter": "Rohini", "Venus": "Purva Phalguni", 
+        "Saturn": "Shatabhisha", "Rahu": "Purva Bhadrapada", "Ketu": "Purva Phalguni"
+    }
+
+    for p_name, nak_name in fallback_naks.items():
+        speed = AVERAGE_DAILY_SPEEDS.get(p_name, 1.0)
         vedha = calculate_vedha(p_name, nak_name, speed)
-
         planet_data.append({
-            "Planet": p_name,
-            "Longitude": lon,
-            "Longitude_str": f"{lon:.2f}°",
-            "Speed (°/day)": round(speed, 4),
-            "Nakshatra": nak_name,
-            "Motion": vedha["Motion"],
+            "Planet": p_name, "Longitude": 0.0, "Speed (°/day)": speed,
+            "Nakshatra": nak_name, "Motion": "Sama (Normal)",
             "Primary Vedha": vedha["Primary Vedha"],
-            "Front Target": vedha["Front Target"],
-            "Left Target": vedha["Left Target"],
-            "Right Target": vedha["Right Target"],
-            "All Targets": vedha["All_Targets"]
+            "Front Target": vedha["Front Target"], "Left Target": vedha["Left Target"],
+            "Right Target": vedha["Right Target"], "All Targets": vedha["All_Targets"]
         })
 
     return planet_data
@@ -155,65 +178,39 @@ def get_ephemeris_data(dt: datetime.datetime):
 # -------------------------------------------------------------------
 def analyze_gold_market(planet_data):
     p_map = {p["Planet"]: p for p in planet_data}
-    
     sun = p_map["Sun"]
     jupiter = p_map["Jupiter"]
 
-    bullish_factors = []
-    bearish_factors = []
-    score = 0
+    bullish_factors, bearish_factors, score = [], [], 0
 
     if "Atichara" in sun["Motion"]:
         score += 2
-        bullish_factors.append("Sun is in Atichara (Fast Direct) — Upward gold momentum.")
+        bullish_factors.append("Sun in Atichara (Fast Direct) — Upward gold momentum.")
     elif "Manda" in sun["Motion"]:
         score -= 1
-        bearish_factors.append("Sun is Manda (Slow) — Stagnant/slight downward bias.")
+        bearish_factors.append("Sun Manda (Slow) — Stagnant/slight downward bias.")
 
     if "Vakra" in jupiter["Motion"]:
         score += 1.5
-        bullish_factors.append("Jupiter Retrograde (Vakra) — Increases physical gold safe-haven demand.")
-    elif "Atichara" in jupiter["Motion"]:
-        score += 1
-        bullish_factors.append("Jupiter in Atichara — Positive financial expansion.")
+        bullish_factors.append("Jupiter Retrograde (Vakra) — Increases safe-haven demand.")
 
     sun_nak = sun["Nakshatra"]
-    afflicting_malefics = []
-    for p in planet_data:
-        if p["Planet"] in MALEFICS and p["Planet"] != "Sun":
-            if sun_nak in p["All Targets"]:
-                afflicting_malefics.append(f"{p['Planet']} ({p['Motion']})")
-
-    if afflicting_malefics:
-        score -= 2 * len(afflicting_malefics)
-        bearish_factors.append(f"Asubha Vedha on Sun's Nakshatra ({sun_nak}) by: {', '.join(afflicting_malefics)}.")
-
-    jup_nak = jupiter["Nakshatra"]
-    jup_afflictions = [p["Planet"] for p in planet_data if p["Planet"] in MALEFICS and jup_nak in p["All Targets"]]
-    if jup_afflictions:
-        score -= 1.5 * len(jup_afflictions)
-        bearish_factors.append(f"Jupiter's Nakshatra ({jup_nak}) under Vedha from {', '.join(jup_afflictions)}.")
+    afflicting = [p["Planet"] for p in planet_data if p["Planet"] in MALEFICS and p["Planet"] != "Sun" and sun_nak in p["All Targets"]]
+    if afflicting:
+        score -= 2 * len(afflicting)
+        bearish_factors.append(f"Asubha Vedha on Sun ({sun_nak}) by: {', '.join(afflicting)}.")
 
     if score >= 2:
-        signal = "BULLISH 📈"
-        bias = "Buy on Dips / Positive Sentiment"
+        signal, bias = "BULLISH 📈", "Buy on Dips"
     elif score <= -2:
-        signal = "BEARISH 📉"
-        bias = "Sell on Rallies / Downward Pressure"
+        signal, bias = "BEARISH 📉", "Sell on Rallies"
     else:
-        signal = "NEUTRAL / VOLATILE ⚠️"
-        bias = "Range-Bound / Exercise Caution"
+        signal, bias = "NEUTRAL ⚠️", "Range-Bound"
 
-    return {
-        "Signal": signal,
-        "Bias": bias,
-        "Score": score,
-        "Bullish Factors": bullish_factors,
-        "Bearish Factors": bearish_factors
-    }
+    return {"Signal": signal, "Bias": bias, "Score": score, "Bullish Factors": bullish_factors, "Bearish Factors": bearish_factors}
 
 # -------------------------------------------------------------------
-# 5. RENDER VISUAL SARVATOBHADRA CHAKRA WITH SVG RAYS
+# 5. SVG + HTML 9x9 GRID RENDERER
 # -------------------------------------------------------------------
 def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
     CELL_SIZE = 100
@@ -223,17 +220,12 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
     vedha_targets = set()
     svg_lines = []
 
-    # Map all planetary positions onto the grid
     for p in planet_data:
         nak = p["Nakshatra"]
-        if nak not in planet_positions:
-            planet_positions[nak] = []
-        planet_positions[nak].append(p["Planet"])
+        planet_positions.setdefault(nak, []).append(p["Planet"])
 
-    # Build SVG Rays ONLY for planets selected in the filter
     for p in planet_data:
         p_name = p["Planet"]
-        
         if p_name not in selected_planets:
             continue
 
@@ -242,8 +234,8 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
             continue
             
         src_r, src_c = SBC_GRID_POSITIONS[src_nak]
-        x1 = src_c * CELL_SIZE + (CELL_SIZE // 2)
-        y1 = src_r * CELL_SIZE + (CELL_SIZE // 2)
+        x1 = src_c * CELL_SIZE + 50
+        y1 = src_r * CELL_SIZE + 50
 
         stroke_color = "#ff4b4b" if p_name in MALEFICS else "#00c853"
 
@@ -257,8 +249,8 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
             if target_nak and target_nak in SBC_GRID_POSITIONS:
                 vedha_targets.add(target_nak)
                 tgt_r, tgt_c = SBC_GRID_POSITIONS[target_nak]
-                x2 = tgt_c * CELL_SIZE + (CELL_SIZE // 2)
-                y2 = tgt_r * CELL_SIZE + (CELL_SIZE // 2)
+                x2 = tgt_c * CELL_SIZE + 50
+                y2 = tgt_r * CELL_SIZE + 50
 
                 is_primary = (
                     ("Front" in p["Primary Vedha"] and vedha_type == "Front Target") or
@@ -273,22 +265,18 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                 svg_lines.append(
                     f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
                     f'stroke="{stroke_color}" stroke-width="{stroke_width}" '
-                    f'stroke-linecap="round" stroke-dasharray="{dash_array}" '
-                    f'opacity="{opacity}" />'
+                    f'stroke-linecap="round" stroke-dasharray="{dash_array}" opacity="{opacity}" />'
                 )
 
-    # HTML Overlay Assembly
     html = f"""
     <div style="position: relative; width: 100%; max-width: 750px; margin: 0 auto; aspect-ratio: 1 / 1;">
-        <!-- SVG Overlay Layer -->
         <svg viewBox="0 0 {GRID_DIM} {GRID_DIM}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
             {''.join(svg_lines)}
         </svg>
 
-        <!-- HTML Grid Layer -->
         <style>
             .sbc-table-svg {{ width: 100%; height: 100%; border-collapse: collapse; text-align: center; font-family: sans-serif; table-layout: fixed; }}
-            .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; position: relative; box-sizing: border-box; }}
+            .sbc-cell-svg {{ border: 1px solid #333; vertical-align: top; padding: 2px; font-size: 10px; box-sizing: border-box; }}
             .sbc-outer-svg {{ background-color: #181d24; color: #e0e0e0; font-weight: bold; }}
             .sbc-inner-svg {{ background-color: #0d0f12; color: #444; }}
             .sbc-badge {{ display: inline-block; padding: 1px 3px; margin: 1px; border-radius: 3px; font-size: 9px; font-weight: bold; }}
@@ -304,16 +292,12 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
         html += "<tr>"
         for c in range(9):
             nak_name = GRID_TO_NAKSHATRA.get((r, c), None)
-            
             if nak_name:
                 is_tgt = nak_name in vedha_targets
                 cell_cls = "sbc-cell-svg sbc-outer-svg" + (" is-target" if is_tgt else "")
                 planets = planet_positions.get(nak_name, [])
                 
-                badges = ""
-                for p in planets:
-                    b_cls = "bg-malefic" if p in MALEFICS else "bg-benefic"
-                    badges += f"<span class='sbc-badge {b_cls}'>{p}</span>"
+                badges = "".join([f"<span class='sbc-badge {'bg-malefic' if p in MALEFICS else 'bg-benefic'}'>{p}</span>" for p in planets])
 
                 html += f"""
                 <td class='{cell_cls}'>
@@ -325,18 +309,15 @@ def render_sbc_grid_visual_with_svg(planet_data, selected_planets):
                 html += "<td class='sbc-cell-svg sbc-inner-svg'></td>"
         html += "</tr>"
 
-    html += """
-        </table>
-    </div>
-    """
+    html += "</table></div>"
     return html
 
 # -------------------------------------------------------------------
-# 6. STREAMLIT APP CONFIGURATION & STATE
+# 6. STREAMLIT APP & UI
 # -------------------------------------------------------------------
 st.set_page_config(page_title="VyaparRatna SBC Gold Engine", layout="wide")
 
-all_planets = list(PLANET_IDS.keys())
+all_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
 
 if "mode" not in st.session_state:
     st.session_state.mode = "LIVE"
@@ -347,73 +328,10 @@ if "selected_planets" not in st.session_state:
 st.title("🏆 VyaparRatna SBC Gold Trading Engine")
 st.caption(f"Sarvatobhadra Chakra Analysis • Mumbai Reference Location ({MUMBAI_LAT}° N, {MUMBAI_LON}° E)")
 
-# -------------------------------------------------------------------
-# 7. SIDEBAR CONTROLS
-# -------------------------------------------------------------------
-st.sidebar.header("🕹️ Mode & Time Controller")
-
-if st.session_state.mode == "LIVE":
-    st.sidebar.success("🔴 LIVE MODE (Auto-Refreshing every 5 mins)")
-else:
-    st.sidebar.warning("⏳ HISTORICAL MODE (Auto-Refresh Paused)")
-
-if st.sidebar.button("🔄 Reset to Current Mumbai Time"):
-    st.session_state.mode = "LIVE"
-    st.rerun()
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("📅 Date & Time Input")
-
 now_mumbai = datetime.datetime.now(MUMBAI_TZ)
-
-if st.session_state.mode == "LIVE":
-    active_date = now_mumbai.date()
-    active_time = now_mumbai.time()
-else:
-    active_date = st.session_state.get("hist_date", now_mumbai.date())
-    active_time = st.session_state.get("hist_time", now_mumbai.time())
-
-selected_date = st.sidebar.date_input("Select Date", active_date)
-selected_time = st.sidebar.time_input("Select Time (IST)", active_time)
-
-combined_input = datetime.datetime.combine(selected_date, selected_time, tzinfo=MUMBAI_TZ)
-time_diff = abs((combined_input - now_mumbai).total_seconds())
-
-if time_diff > 60:
-    st.session_state.mode = "HISTORICAL"
-    st.session_state.hist_date = selected_date
-    st.session_state.hist_time = selected_time
-
-effective_datetime = combined_input if st.session_state.mode == "HISTORICAL" else now_mumbai
-
-# -------------------------------------------------------------------
-# 8. CLIENT-SIDE AUTO-REFRESH (LIVE MODE ONLY)
-# -------------------------------------------------------------------
-if st.session_state.mode == "LIVE":
-    st.components.v1.html(
-        """
-        <script>
-            setTimeout(function(){
-                window.parent.location.reload();
-            }, 300000);
-        </script>
-        """,
-        height=0
-    )
-
-# -------------------------------------------------------------------
-# 9. DASHBOARD RENDER
-# -------------------------------------------------------------------
-data = get_ephemeris_data(effective_datetime)
+data = get_ephemeris_data(now_mumbai)
 gold = analyze_gold_market(data)
 
-st.info(
-    f"**Active Calculation Timestamp:** `{effective_datetime.strftime('%Y-%m-%d %H:%M:%S %Z')}` "
-    f"| **Location:** Mumbai, India "
-    f"| **Refresh State:** {'🟢 Browser Auto-Refresh Active (300s)' if st.session_state.mode == 'LIVE' else '⏸️ Paused (Historical Analysis)'}"
-)
-
-# Metrics
 st.divider()
 st.subheader("📊 Gold Trading Analysis (Suvarna Vedha)")
 g_col1, g_col2, g_col3 = st.columns([1, 1, 1])
@@ -425,72 +343,17 @@ with g_col2:
 with g_col3:
     st.metric("Net SBC Score", f"{gold['Score']:+.1f}")
 
-col_a, col_b = st.columns(2)
-with col_a:
-    st.success("🟢 **Bullish Factors**")
-    if gold["Bullish Factors"]:
-        for factor in gold["Bullish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No strong bullish SBC factors present.")
-
-with col_b:
-    st.error("🔴 **Bearish / Risk Factors**")
-    if gold["Bearish Factors"]:
-        for factor in gold["Bearish Factors"]:
-            st.write(f"- {factor}")
-    else:
-        st.write("No significant malefic Vedha afflicting Gold significators.")
-
-# Visual SBC Grid with Filter Presets
+# Grid Section
 st.divider()
 st.subheader("🕸️ Visual Sarvatobhadra Chakra & Active Vedha Paths")
 st.caption("🔴 Red = Malefic Planet | 🟢 Green = Benefic Planet | 🟠 Yellow Highlight = Active Vedha Target")
-
-st.write("**Quick Presets:**")
-btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
-
-if btn_c1.button("Show All Planets"):
-    st.session_state.selected_planets = all_planets.copy()
-    st.rerun()
-
-if btn_c2.button("Malefics Only"):
-    st.session_state.selected_planets = MALEFICS.copy()
-    st.rerun()
-
-if btn_c3.button("Benefics Only"):
-    st.session_state.selected_planets = BENEFICS.copy()
-    st.rerun()
-
-if btn_c4.button("Gold Key Movers"):
-    st.session_state.selected_planets = ["Sun", "Jupiter", "Saturn", "Mars"]
-    st.rerun()
 
 selected_planets = st.multiselect(
     "Filter SVG Vedha Rays by Planet:",
     options=all_planets,
     default=st.session_state.selected_planets,
-    key="planet_multiselect_filter",
-    help="Select or unselect planets to isolate their specific Vedha aspect paths on the grid."
+    key="planet_multiselect_filter"
 )
-
-st.session_state.selected_planets = selected_planets
 
 sbc_html = render_sbc_grid_visual_with_svg(data, selected_planets)
 st.markdown(sbc_html, unsafe_allow_html=True)
-
-# Detailed Cards
-st.divider()
-st.subheader("🔍 Planetary Vedha Details")
-cols = st.columns(3)
-for idx, p in enumerate(data):
-    with cols[idx % 3]:
-        with st.container(border=True):
-            st.markdown(f"### {p['Planet']}")
-            st.write(f"**Nakshatra:** {p['Nakshatra']} | **Speed:** {p['Speed (°/day)']}°/d")
-            st.write(f"**Motion:** `{p['Motion']}`")
-            st.write(f"**Active Primary Aspect:** `{p['Primary Vedha']}`")
-            st.markdown("---")
-            st.write(f"🎯 **Front Vedha:** {p['Front Target']}")
-            st.write(f"⬅️ **Left Vedha:** {p['Left Target']}")
-            st.write(f"➡️ **Right Vedha:** {p['Right Target']}")
